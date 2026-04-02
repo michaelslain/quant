@@ -1,0 +1,11 @@
+{
+  "rsi_period": 20,
+  "rsi_oversold": 25,
+  "bb_period": 15,
+  "bb_std": 2.5,
+  "volume_mult": 1.2,
+  "top_n": 1,
+  "trend_window": 240,
+  "rebalance_every": 30,
+  "updated_at": "2026-04-01T21:20:30.954232"
+}

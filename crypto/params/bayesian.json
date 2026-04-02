@@ -1,0 +1,12 @@
+{
+  "sma_period": 20,
+  "rsi_period": 20,
+  "momentum_weight": 1.0,
+  "volume_weight": 0.5,
+  "rsi_weight": 0.5,
+  "threshold": 0.75,
+  "trend_window": 240,
+  "top_n": 2,
+  "rebalance_every": 15,
+  "updated_at": "2026-04-01T20:18:08.714867"
+}

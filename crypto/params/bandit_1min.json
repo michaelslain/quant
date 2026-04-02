@@ -1,0 +1,9 @@
+{
+  "reward_window": 120,
+  "exploration_factor": 0.01,
+  "return_threshold": 0.01,
+  "trend_window": 120,
+  "top_n": 1,
+  "rebalance_every": 1,
+  "updated_at": "2026-03-29T13:39:36.457176"
+}

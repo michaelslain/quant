@@ -1,0 +1,9 @@
+{
+  "vwap_window": 120,
+  "min_dip": 0.005,
+  "max_dip": 0.02,
+  "top_n": 1,
+  "trend_window": 120,
+  "rebalance_every": 1,
+  "updated_at": "2026-03-29T13:29:54.340791"
+}

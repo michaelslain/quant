@@ -1,0 +1,13 @@
+{
+  "updated_at": "2026-04-01T21:35:00.765296",
+  "optimize_days": 60,
+  "backtest_days": 365,
+  "crypto": {
+    "strategy": "bayesian",
+    "backtest_return": 2.7041589235324213
+  },
+  "stock": {
+    "strategy": "mean_reversion",
+    "backtest_return": 533.2871138062077
+  }
+}
