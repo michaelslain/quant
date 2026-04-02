@@ -1,0 +1,16 @@
+[Unit]
+Description=Quant Live Trader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=m
+WorkingDirectory=/home/m/dev/quant
+ExecStart=/home/m/dev/quant/.venv/bin/python run_live.py
+Restart=always
+RestartSec=30
+EnvironmentFile=/home/m/dev/quant/.env
+
+[Install]
+WantedBy=multi-user.target

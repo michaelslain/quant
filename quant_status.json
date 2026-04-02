@@ -1,0 +1,15 @@
+{
+  "state": "running",
+  "market": "crypto",
+  "strategy": "bayesian",
+  "best": {
+    "crypto": "bayesian",
+    "stock": "mean_reversion"
+  },
+  "equity": 68293.11,
+  "day_start_equity": 69242.69,
+  "baseline_equity": 100000.0,
+  "error": null,
+  "updated_at": "2026-04-02T16:46:45.637288",
+  "pid": 3825
+}
