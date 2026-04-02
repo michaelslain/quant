@@ -4,10 +4,12 @@ Algorithmic paper trading system using Alpaca API. Supports stock and crypto mar
 
 ## Structure
 
-- `main.py` -- CLI entry point. Commands: compare, trade, run, backtest, optimize
+- `main.py` -- CLI entry point. Commands: compare, trade, run, backtest, optimize, refresh
 - `backtest.py` -- vectorized backtester with per-day parquet caching in `.cache/`
 - `optimize.py` -- multiprocessing grid search helper (`grid_search`, `find_best`)
-- `crypto/strategies/` -- crypto-specific strategies (7 strategies)
+- `quant_runner.py` -- long-running trader that auto-picks best strategy, writes status to ~/.claude/daemon/quant_status.json
+- `run_live.py` -- lightweight Pi live trader, reads best_strategy.json and trades
+- `crypto/strategies/` -- crypto-specific strategies (8 strategies)
 - `stock/strategies/` -- stock-specific strategies (5 strategies)
 - `<market>/params/` -- optimized parameters per strategy (JSON)
 - `<market>/params/<strategy>_<interval>min.json` -- interval-specific params
@@ -23,6 +25,7 @@ Algorithmic paper trading system using Alpaca API. Supports stock and crypto mar
 - `run <market> <strategy> [interval]` -- paper trade in a loop with live P&L tracking
 - `backtest <market> [strategy] [days] [--interval N] [--end-days-ago N]` -- simulate on historical data
 - `optimize <market> [strategy] [days] [--interval N]` -- grid search for best params
+- `refresh` -- optimize + backtest all strategies + save best to best_strategy.json
 
 ### Flags
 
