@@ -1,9 +1,9 @@
 {
-  "channel_period": 20,
-  "volume_mult": 1.0,
-  "atr_period": 20,
+  "channel_period": 90,
+  "volume_mult": 1.5,
+  "atr_period": 14,
   "trend_window": 240,
-  "top_n": 2,
-  "rebalance_every": 15,
-  "updated_at": "2026-04-02T18:17:05.938110"
+  "top_n": 1,
+  "rebalance_every": 30,
+  "updated_at": "2026-04-03T02:48:48.788718"
 }

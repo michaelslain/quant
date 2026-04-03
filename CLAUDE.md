@@ -4,12 +4,13 @@ Algorithmic paper trading system using Alpaca API. Supports stock and crypto mar
 
 ## Structure
 
-- `main.py` -- CLI entry point. Commands: compare, trade, run, backtest, optimize, refresh
+- `main.py` -- CLI entry point. Commands: compare, trade, run, backtest, optimize, refresh, livetest
 - `backtest.py` -- vectorized backtester with per-day parquet caching in `.cache/`
 - `optimize.py` -- multiprocessing grid search helper (`grid_search`, `find_best`)
 - `quant_runner.py` -- long-running trader that auto-picks best strategy, writes status to ~/.claude/daemon/quant_status.json
 - `run_live.py` -- lightweight Pi live trader, reads best_strategy.json and trades
-- `crypto/strategies/` -- crypto-specific strategies (8 strategies)
+- `livetest.py` -- simulates combined stock+crypto live trading schedule on historical data
+- `crypto/strategies/` -- crypto-specific strategies (9 strategies)
 - `stock/strategies/` -- stock-specific strategies (5 strategies)
 - `<market>/params/` -- optimized parameters per strategy (JSON)
 - `<market>/params/<strategy>_<interval>min.json` -- interval-specific params
@@ -26,6 +27,7 @@ Algorithmic paper trading system using Alpaca API. Supports stock and crypto mar
 - `backtest <market> [strategy] [days] [--interval N] [--end-days-ago N]` -- simulate on historical data
 - `optimize <market> [strategy] [days] [--interval N]` -- grid search for best params
 - `refresh` -- optimize + backtest all strategies + save best to best_strategy.json
+- `livetest [days]` -- simulate combined stock+crypto live trading on historical data using best_strategy.json
 
 ### Flags
 
@@ -62,7 +64,7 @@ python main.py backtest crypto momentum 365 --end-days-ago 430
 The `--end-days-ago 430` ensures the backtest period (365 days) doesn't overlap with the 60-day optimization window (365 + 60 + 5 buffer = 430 days back).
 
 Additional notes:
-- All strategies use multiprocessing grid search -- run ONE optimization at a time to avoid CPU overload
+- All strategies use multiprocessing grid search (half of available cores) -- run ONE optimization at a time to avoid CPU overload
 - Mean reversion strategies generalize best; trend-following (momentum, breakout) tends to overfit on these assets
 - Longer trend filters (240-480 bars) and concentrated picks (top_n=1-2) improve results
 - Keep grid sizes under ~20K combos to avoid very long optimization runs
@@ -82,3 +84,4 @@ Each strategy file follows the same pattern:
 - Crypto RSI mean revert has **ATR-adaptive RSI thresholds**: scales oversold level by current volatility (`adaptive_rsi` param)
 - Both strategies support per-bar stop-loss checks between rebalances
 - `backtest.py` mirrors these features (take-profit for mean reversion, bounce_window/use_bb/adaptive for RSI)
+- Crypto beta reversion uses **Hurst exponent regime gate**: only trades when BTC Hurst < threshold (mean-reverting regime), with beta-adjusted z-score entry/exit and volatility-scaled sizing

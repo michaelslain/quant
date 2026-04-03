@@ -15,7 +15,7 @@ def grid_search(worker_fn, jobs):
     Returns:
         List of results (same order as jobs).
     """
-    ncpu = cpu_count()
+    ncpu = max(1, cpu_count() // 2)
     total = len(jobs)
     print(f"Testing {total} combinations using {ncpu} cores...")
 

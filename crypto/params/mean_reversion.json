@@ -1,9 +1,9 @@
 {
-  "vwap_window": 120,
-  "min_dip": 0.003,
-  "max_dip": 0.03,
-  "top_n": 3,
-  "trend_window": 240,
+  "vwap_window": 60,
+  "min_dip": 0.01,
+  "max_dip": 0.05,
+  "top_n": 2,
+  "trend_window": 60,
   "rebalance_every": 5,
-  "updated_at": "2026-04-02T18:16:17.220609"
+  "updated_at": "2026-04-03T02:48:31.375680"
 }

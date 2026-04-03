@@ -19,7 +19,9 @@ from crypto.strategies.bayesian import BayesianStrategy
 from crypto.strategies.bandit import BanditStrategy
 from crypto.strategies.monte_carlo import MonteCarloStrategy
 from crypto.strategies.regime_mr import RegimeMeanReversionStrategy
+from crypto.strategies.beta_reversion import BetaReversionStrategy
 from backtest import run_backtest
+from livetest import cmd_livetest
 
 load_dotenv()
 
@@ -89,6 +91,10 @@ CRYPTO_STRATEGIES = {
     "regime_mr": {
         "class": RegimeMeanReversionStrategy,
         "kwargs": {"vwap_window": 60, "min_dip": 0.005, "max_dip": 0.025, "top_n": 1, "trend_window": 240, "take_profit": 0.003, "stop_loss": 0.015, "max_hold": 30, "regime_window": 720, "volume_mult": 0.0},
+    },
+    "beta_reversion": {
+        "class": BetaReversionStrategy,
+        "kwargs": {"lookback": 90, "beta_window": 240, "z_window": 120, "z_entry": 1.5, "z_exit": 0.0, "hurst_window": 240, "hurst_threshold": 0.50, "trend_window": 240, "top_n": 1, "stop_atr_mult": 2.5, "max_hold": 60},
     },
 }
 
@@ -529,7 +535,7 @@ def main():
 
     if not args:
         print("Usage: python main.py <command> <stock|crypto> [strategy] [options]")
-        print("Commands: compare, trade, run, backtest, optimize, refresh")
+        print("Commands: compare, trade, run, backtest, optimize, refresh, livetest")
         print("Examples:")
         print("  python main.py compare stock")
         print("  python main.py backtest crypto momentum 7")
@@ -539,12 +545,23 @@ def main():
         print("  python main.py optimize crypto momentum 60")
         print("  python main.py backtest crypto --interval 1      # compare all at 1min")
         print("  python main.py refresh                           # optimize + backtest + save best")
+        print("  python main.py livetest 365                      # simulate combined live trading")
         return
 
     cmd = args[0]
 
     if cmd == "refresh":
         cmd_refresh(api)
+        return
+
+    if cmd == "livetest":
+        days = 365
+        for a in args[1:]:
+            try:
+                days = int(a)
+            except ValueError:
+                pass
+        cmd_livetest(api, days)
         return
 
     market = args[1] if len(args) > 1 else "stock"
@@ -627,7 +644,7 @@ def main():
         cmd_optimize(api, market, strategy_name, days, interval)
 
     else:
-        print(f"Unknown command '{cmd}'. Use: compare, trade, run, backtest, optimize, refresh")
+        print(f"Unknown command '{cmd}'. Use: compare, trade, run, backtest, optimize, refresh, livetest")
 
 
 if __name__ == "__main__":

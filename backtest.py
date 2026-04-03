@@ -115,6 +115,8 @@ def run_backtest(
         pv = _backtest_breakout(closes, highs, volumes, strategy_kwargs, rebalance_every, initial_cash)
     elif cls_name == "EmaCrossoverStrategy":
         pv = _backtest_ema_crossover(closes, volumes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "BetaReversionStrategy":
+        pv = _backtest_beta_reversion(closes, strategy_kwargs, rebalance_every, initial_cash)
     else:
         pv = _backtest_momentum(closes, strategy_kwargs, rebalance_every, initial_cash)
 
@@ -1047,6 +1049,31 @@ def _backtest_monte_carlo(closes, volumes, kwargs, rebalance_every, initial_cash
             cash -= qty * p
 
     return np.array(values) if values else None
+
+
+def _backtest_beta_reversion(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for BetaReversionStrategy using its worker."""
+    from crypto.strategies.beta_reversion import _beta_reversion_backtest_worker
+
+    # Find BTC column
+    btc_syms = [s for s in closes.columns if "BTC" in s]
+    if not btc_syms:
+        print("BTC not in symbols — cannot compute beta.")
+        return None
+
+    btc_col = closes.columns.get_loc(btc_syms[0])
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _beta_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
+                                              rebalance_every, initial_cash,
+                                              return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
 
 
 def _print_results(pv, initial_cash, rebalance_every, cls_name, is_crypto=False):
