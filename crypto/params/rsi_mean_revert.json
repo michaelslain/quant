@@ -1,15 +1,15 @@
 {
   "rsi_period": 14,
   "rsi_oversold": 40,
-  "bb_period": 15,
-  "bb_std": 1.5,
-  "volume_mult": 1.0,
+  "bb_period": 20,
+  "bb_std": 2.0,
+  "volume_mult": 0.0,
   "top_n": 2,
   "trend_window": 240,
-  "bounce_window": 1,
+  "bounce_window": 3,
   "use_bb": 1,
   "stop_loss": 0.0,
   "adaptive_rsi": 1,
   "rebalance_every": 30,
-  "updated_at": "2026-04-01T20:17:43.825173"
+  "updated_at": "2026-04-02T18:29:25.892399"
 }

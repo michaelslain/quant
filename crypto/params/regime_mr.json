@@ -3,12 +3,12 @@
   "min_dip": 0.003,
   "max_dip": 0.008,
   "top_n": 1,
-  "trend_window": 120,
-  "take_profit": 0.006,
+  "trend_window": 60,
+  "take_profit": 0.004,
   "stop_loss": 0.015,
   "max_hold": 25,
   "regime_window": 1080,
   "volume_mult": 0.0,
   "rebalance_every": 15,
-  "updated_at": "2026-04-01T20:30:46.419766"
+  "updated_at": "2026-04-02T18:05:41.047944"
 }

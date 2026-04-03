@@ -7,6 +7,6 @@
   "threshold": 0.75,
   "trend_window": 240,
   "top_n": 2,
-  "rebalance_every": 15,
-  "updated_at": "2026-04-01T20:18:08.714867"
+  "rebalance_every": 30,
+  "updated_at": "2026-04-02T18:30:48.152696"
 }
