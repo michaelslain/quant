@@ -1,7 +1,7 @@
 {
   "vwap_window": 30,
   "min_dip": 0.001,
-  "max_dip": 0.015,
+  "max_dip": 0.02,
   "top_n": 2,
   "trend_window": 480,
   "volume_mult": 0.0,
@@ -9,5 +9,5 @@
   "recovery_bars": 0,
   "take_profit": 0.002,
   "rebalance_every": 5,
-  "updated_at": "2026-04-02T20:20:00.008036"
+  "updated_at": "2026-04-03T07:39:11.428004"
 }
