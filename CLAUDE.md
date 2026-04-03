@@ -43,7 +43,8 @@ Algorithmic paper trading system using Alpaca API. Supports stock and crypto mar
 - Stock positions are integer: use `int(per_stock // price)`
 - Alpaca returns crypto positions without slash (DOGEUSD not DOGE/USD) -- use `is_crypto()` helper for detection
 - Sharpe calculation: crypto uses `(1440 * 365) / rebalance_every`, stocks use `(390 * 252) / rebalance_every`
-- Python: `/Users/michaelslain/miniconda3/bin/python`
+- Python (Mac): `/Users/michaelslain/miniconda3/bin/python`
+- Python (Pi): `/home/m/dev/quant/.venv/bin/python`
 
 ## Caching
 

@@ -296,3 +296,331 @@
 [2026-04-02 16:45:01] All checks passed.
 [2026-04-02 16:45:01] OK: running | crypto/bayesian | equity=$68256.96
 [2026-04-02 16:45:01] All checks passed.
+[2026-04-02 17:00:02] OK: running | crypto/bayesian | equity=$68293.11
+[2026-04-02 17:00:02] All checks passed.
+[2026-04-02 17:00:02] OK: running | crypto/bayesian | equity=$68293.11
+[2026-04-02 17:00:02] All checks passed.
+[2026-04-02 17:15:01] OK: running | crypto/bayesian | equity=$68294.43
+[2026-04-02 17:15:02] All checks passed.
+[2026-04-02 17:15:01] OK: running | crypto/bayesian | equity=$68294.43
+[2026-04-02 17:15:02] All checks passed.
+[2026-04-02 17:30:01] OK: running | crypto/bayesian | equity=$68289.11
+[2026-04-02 17:30:01] All checks passed.
+[2026-04-02 17:30:01] OK: running | crypto/bayesian | equity=$68289.11
+[2026-04-02 17:30:01] All checks passed.
+[2026-04-02 17:45:01] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 17:45:01] All checks passed.
+[2026-04-02 17:45:01] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 17:45:01] All checks passed.
+[2026-04-02 18:00:02] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 18:00:02] All checks passed.
+[2026-04-02 18:00:02] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 18:00:02] All checks passed.
+[2026-04-02 18:15:01] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 18:15:01] All checks passed.
+[2026-04-02 18:15:01] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 18:15:01] All checks passed.
+[2026-04-02 18:30:02] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 18:30:02] All checks passed.
+[2026-04-02 18:30:02] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 18:30:02] All checks passed.
+[2026-04-02 18:45:01] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 18:45:01] All checks passed.
+[2026-04-02 18:45:01] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 18:45:01] All checks passed.
+[2026-04-02 19:00:01] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 19:00:01] All checks passed.
+[2026-04-02 19:00:01] OK: running | crypto/bayesian | equity=$68279.28
+[2026-04-02 19:00:01] All checks passed.
+[2026-04-02 19:15:01] OK: running | crypto/bayesian | equity=$68331.85
+[2026-04-02 19:15:01] All checks passed.
+[2026-04-02 19:15:01] OK: running | crypto/bayesian | equity=$68331.85
+[2026-04-02 19:15:01] All checks passed.
+[2026-04-02 19:30:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 19:30:01] All checks passed.
+[2026-04-02 19:30:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 19:30:01] All checks passed.
+[2026-04-02 19:45:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 19:45:02] All checks passed.
+[2026-04-02 19:45:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 19:45:02] All checks passed.
+[2026-04-02 20:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 20:00:01] All checks passed.
+[2026-04-02 20:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 20:00:01] All checks passed.
+[2026-04-02 20:15:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 20:15:02] All checks passed.
+[2026-04-02 20:15:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 20:15:02] All checks passed.
+[2026-04-02 20:30:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 20:30:01] All checks passed.
+[2026-04-02 20:30:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 20:30:01] All checks passed.
+[2026-04-02 20:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 20:45:01] All checks passed.
+[2026-04-02 20:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 20:45:01] All checks passed.
+[2026-04-02 21:00:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 21:00:02] All checks passed.
+[2026-04-02 21:00:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 21:00:02] All checks passed.
+[2026-04-02 21:15:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 21:15:01] All checks passed.
+[2026-04-02 21:15:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 21:15:01] All checks passed.
+[2026-04-02 21:30:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 21:30:02] All checks passed.
+[2026-04-02 21:30:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 21:30:02] All checks passed.
+[2026-04-02 21:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 21:45:01] All checks passed.
+[2026-04-02 21:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 21:45:01] All checks passed.
+[2026-04-02 22:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 22:00:01] All checks passed.
+[2026-04-02 22:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 22:00:01] All checks passed.
+[2026-04-02 22:15:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 22:15:02] All checks passed.
+[2026-04-02 22:15:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 22:15:02] All checks passed.
+[2026-04-02 22:30:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 22:30:01] All checks passed.
+[2026-04-02 22:30:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 22:30:01] All checks passed.
+[2026-04-02 22:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 22:45:01] All checks passed.
+[2026-04-02 22:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 22:45:01] All checks passed.
+[2026-04-02 23:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 23:00:01] All checks passed.
+[2026-04-02 23:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 23:00:01] All checks passed.
+[2026-04-02 23:15:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 23:15:01] All checks passed.
+[2026-04-02 23:15:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 23:15:01] All checks passed.
+[2026-04-02 23:30:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 23:30:02] All checks passed.
+[2026-04-02 23:30:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 23:30:02] All checks passed.
+[2026-04-02 23:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 23:45:01] All checks passed.
+[2026-04-02 23:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-02 23:45:01] All checks passed.
+[2026-04-03 00:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 00:00:01] All checks passed.
+[2026-04-03 00:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 00:00:01] All checks passed.
+[2026-04-03 00:15:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 00:15:02] All checks passed.
+[2026-04-03 00:15:02] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 00:15:02] All checks passed.
+[2026-04-03 00:30:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 00:30:01] All checks passed.
+[2026-04-03 00:30:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 00:30:01] All checks passed.
+[2026-04-03 00:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 00:45:01] All checks passed.
+[2026-04-03 00:45:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 00:45:01] All checks passed.
+[2026-04-03 01:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 01:00:01] All checks passed.
+[2026-04-03 01:00:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 01:00:01] All checks passed.
+[2026-04-03 01:15:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 01:15:01] All checks passed.
+[2026-04-03 01:15:01] OK: running | crypto/bayesian | equity=$68325.11
+[2026-04-03 01:15:01] All checks passed.
+[2026-04-03 01:30:02] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 01:30:02] All checks passed.
+[2026-04-03 01:30:02] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 01:30:02] All checks passed.
+[2026-04-03 01:45:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 01:45:01] All checks passed.
+[2026-04-03 01:45:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 01:45:01] All checks passed.
+[2026-04-03 02:00:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 02:00:01] All checks passed.
+[2026-04-03 02:00:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 02:00:01] All checks passed.
+[2026-04-03 02:15:02] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 02:15:02] All checks passed.
+[2026-04-03 02:15:02] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 02:15:02] All checks passed.
+[2026-04-03 02:30:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 02:30:01] All checks passed.
+[2026-04-03 02:30:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 02:30:01] All checks passed.
+[2026-04-03 02:45:02] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 02:45:02] All checks passed.
+[2026-04-03 02:45:02] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 02:45:02] All checks passed.
+[2026-04-03 03:00:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 03:00:01] All checks passed.
+[2026-04-03 03:00:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 03:00:01] All checks passed.
+[2026-04-03 03:15:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 03:15:01] All checks passed.
+[2026-04-03 03:15:01] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 03:15:01] All checks passed.
+[2026-04-03 03:30:02] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 03:30:02] All checks passed.
+[2026-04-03 03:30:02] OK: running | crypto/bayesian | equity=$68317.15
+[2026-04-03 03:30:02] All checks passed.
+[2026-04-03 03:45:01] OK: running | crypto/bayesian | equity=$68314.78
+[2026-04-03 03:45:01] All checks passed.
+[2026-04-03 03:45:01] OK: running | crypto/bayesian | equity=$68314.78
+[2026-04-03 03:45:01] All checks passed.
+[2026-04-03 04:00:01] OK: running | crypto/bayesian | equity=$68314.78
+[2026-04-03 04:00:01] All checks passed.
+[2026-04-03 04:00:01] OK: running | crypto/bayesian | equity=$68314.78
+[2026-04-03 04:00:01] All checks passed.
+[2026-04-03 04:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 04:15:01] All checks passed.
+[2026-04-03 04:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 04:15:01] All checks passed.
+[2026-04-03 04:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 04:30:01] All checks passed.
+[2026-04-03 04:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 04:30:01] All checks passed.
+[2026-04-03 04:45:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 04:45:02] All checks passed.
+[2026-04-03 04:45:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 04:45:02] All checks passed.
+[2026-04-03 05:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 05:00:01] All checks passed.
+[2026-04-03 05:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 05:00:01] All checks passed.
+[2026-04-03 05:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 05:15:01] All checks passed.
+[2026-04-03 05:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 05:15:01] All checks passed.
+[2026-04-03 05:30:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 05:30:02] All checks passed.
+[2026-04-03 05:30:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 05:30:02] All checks passed.
+[2026-04-03 05:45:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 05:45:01] All checks passed.
+[2026-04-03 05:45:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 05:45:01] All checks passed.
+[2026-04-03 06:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 06:00:01] All checks passed.
+[2026-04-03 06:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 06:00:01] All checks passed.
+[2026-04-03 06:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 06:15:01] All checks passed.
+[2026-04-03 06:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 06:15:01] All checks passed.
+[2026-04-03 06:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 06:30:01] All checks passed.
+[2026-04-03 06:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 06:30:01] All checks passed.
+[2026-04-03 06:45:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 06:45:02] All checks passed.
+[2026-04-03 06:45:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 06:45:02] All checks passed.
+[2026-04-03 07:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 07:00:01] All checks passed.
+[2026-04-03 07:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 07:00:01] All checks passed.
+[2026-04-03 07:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 07:15:01] All checks passed.
+[2026-04-03 07:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 07:15:01] All checks passed.
+[2026-04-03 07:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 07:30:01] All checks passed.
+[2026-04-03 07:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 07:30:01] All checks passed.
+[2026-04-03 07:45:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 07:45:01] All checks passed.
+[2026-04-03 07:45:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 07:45:01] All checks passed.
+[2026-04-03 08:00:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 08:00:02] All checks passed.
+[2026-04-03 08:00:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 08:00:02] All checks passed.
+[2026-04-03 08:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 08:15:01] All checks passed.
+[2026-04-03 08:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 08:15:01] All checks passed.
+[2026-04-03 08:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 08:30:01] All checks passed.
+[2026-04-03 08:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 08:30:01] All checks passed.
+[2026-04-03 08:45:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 08:45:02] All checks passed.
+[2026-04-03 08:45:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 08:45:02] All checks passed.
+[2026-04-03 09:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 09:00:01] All checks passed.
+[2026-04-03 09:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 09:00:01] All checks passed.
+[2026-04-03 09:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 09:15:02] All checks passed.
+[2026-04-03 09:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 09:15:02] All checks passed.
+[2026-04-03 09:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 09:30:01] All checks passed.
+[2026-04-03 09:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 09:30:01] All checks passed.
+[2026-04-03 09:45:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 09:45:01] All checks passed.
+[2026-04-03 09:45:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 09:45:01] All checks passed.
+[2026-04-03 10:00:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 10:00:02] All checks passed.
+[2026-04-03 10:00:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 10:00:02] All checks passed.
+[2026-04-03 10:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 10:15:01] All checks passed.
+[2026-04-03 10:15:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 10:15:01] All checks passed.
+[2026-04-03 10:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 10:30:01] All checks passed.
+[2026-04-03 10:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 10:30:01] All checks passed.
+[2026-04-03 10:45:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 10:45:02] All checks passed.
+[2026-04-03 10:45:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 10:45:02] All checks passed.
+[2026-04-03 11:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 11:00:01] All checks passed.
+[2026-04-03 11:00:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 11:00:01] All checks passed.
+[2026-04-03 11:15:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 11:15:02] All checks passed.
+[2026-04-03 11:15:02] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 11:15:02] All checks passed.
+[2026-04-03 11:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 11:30:01] All checks passed.
+[2026-04-03 11:30:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 11:30:01] All checks passed.
+[2026-04-03 11:45:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 11:45:01] All checks passed.
+[2026-04-03 11:45:01] OK: running | crypto/bayesian | equity=$68300.97
+[2026-04-03 11:45:01] All checks passed.
+[2026-04-03 12:00:02] OK: running | crypto/bayesian | equity=$68290.8
+[2026-04-03 12:00:02] All checks passed.
+[2026-04-03 12:00:02] OK: running | crypto/bayesian | equity=$68290.8
+[2026-04-03 12:00:02] All checks passed.
+[2026-04-03 12:15:01] OK: running | crypto/bayesian | equity=$68290.8
+[2026-04-03 12:15:01] All checks passed.
+[2026-04-03 12:15:01] OK: running | crypto/bayesian | equity=$68290.8
+[2026-04-03 12:15:01] All checks passed.
+[2026-04-03 12:30:01] OK: running | crypto/bayesian | equity=$68284.84
+[2026-04-03 12:30:01] All checks passed.
+[2026-04-03 12:30:01] OK: running | crypto/bayesian | equity=$68284.84
+[2026-04-03 12:30:01] All checks passed.
+[2026-04-03 12:45:01] OK: running | crypto/bayesian | equity=$68284.84
+[2026-04-03 12:45:01] All checks passed.
+[2026-04-03 12:45:01] OK: running | crypto/bayesian | equity=$68284.84
+[2026-04-03 12:45:01] All checks passed.
+[2026-04-03 13:00:01] OK: running | crypto/bayesian | equity=$68284.84
+[2026-04-03 13:00:01] All checks passed.
+[2026-04-03 13:00:01] OK: running | crypto/bayesian | equity=$68284.84
+[2026-04-03 13:00:01] All checks passed.
+[2026-04-03 13:15:02] OK: running | crypto/bayesian | equity=$68284.84
+[2026-04-03 13:15:02] All checks passed.
+[2026-04-03 13:15:02] OK: running | crypto/bayesian | equity=$68284.84
+[2026-04-03 13:15:02] All checks passed.

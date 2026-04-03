@@ -6,10 +6,10 @@
     "crypto": "bayesian",
     "stock": "mean_reversion"
   },
-  "equity": 68293.11,
-  "day_start_equity": 69242.69,
+  "equity": 68284.84,
+  "day_start_equity": 68342.9,
   "baseline_equity": 100000.0,
   "error": null,
-  "updated_at": "2026-04-02T16:46:45.637288",
-  "pid": 3825
+  "updated_at": "2026-04-03T12:58:13.433427",
+  "pid": 6810
 }
