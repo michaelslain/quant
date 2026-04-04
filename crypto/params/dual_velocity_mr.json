@@ -1,15 +1,15 @@
 {
   "fast_window": 10,
-  "slow_window": 120,
-  "lookback": 120,
+  "slow_window": 60,
+  "lookback": 240,
   "entry_frac": 0.6,
-  "slow_floor": 0.005,
+  "slow_floor": -0.01,
   "top_n": 2,
-  "trend_window": 240,
+  "trend_window": 120,
   "take_profit": 0.002,
-  "stop_loss": 0.025,
-  "max_hold": 0,
-  "regime_window": 0,
-  "rebalance_every": 30,
-  "updated_at": "2026-04-03T23:19:07.078539"
+  "stop_loss": 0.0,
+  "max_hold": 60,
+  "regime_window": 540,
+  "rebalance_every": 15,
+  "updated_at": "2026-04-04T02:48:16.189653"
 }

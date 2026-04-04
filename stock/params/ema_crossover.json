@@ -1,9 +1,9 @@
 {
-  "fast_period": 20,
+  "fast_period": 15,
   "slow_period": 30,
   "volume_mult": 1.2,
   "trend_window": 480,
   "top_n": 3,
   "rebalance_every": 30,
-  "updated_at": "2026-04-03T07:41:57.120008"
+  "updated_at": "2026-04-04T04:18:46.996710"
 }

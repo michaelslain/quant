@@ -1,11 +1,11 @@
 {
   "rsi_period": 10,
-  "rsi_threshold": 55,
-  "bb_period": 20,
+  "rsi_threshold": 50,
+  "bb_period": 15,
   "bb_std": 1.5,
-  "volume_mult": 1.2,
-  "top_n": 1,
+  "volume_mult": 1.0,
+  "top_n": 2,
   "trend_window": 240,
-  "rebalance_every": 30,
-  "updated_at": "2026-04-03T03:20:37.158069"
+  "rebalance_every": 15,
+  "updated_at": "2026-04-04T00:39:22.333951"
 }

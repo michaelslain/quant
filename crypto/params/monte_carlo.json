@@ -1,10 +1,10 @@
 {
-  "lookback": 120,
-  "n_simulations": 100,
+  "lookback": 60,
+  "n_simulations": 200,
   "horizon": 5,
   "volume_weight": 0.3,
-  "trend_window": 60,
+  "trend_window": 240,
   "top_n": 1,
-  "rebalance_every": 30,
-  "updated_at": "2026-04-03T03:52:03.743342"
+  "rebalance_every": 15,
+  "updated_at": "2026-04-04T01:25:47.024841"
 }

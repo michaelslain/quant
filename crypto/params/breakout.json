@@ -1,13 +1,13 @@
 {
-  "channel_period": 90,
-  "volume_mult": 1.5,
-  "atr_period": 14,
-  "trend_window": 240,
+  "channel_period": 40,
+  "volume_mult": 1.2,
+  "atr_period": 20,
+  "trend_window": 120,
   "top_n": 1,
-  "take_profit": 0.0,
-  "stop_loss": 0.0,
+  "take_profit": 0.002,
+  "stop_loss": 0.015,
   "max_hold": 0,
-  "regime_window": 0,
+  "regime_window": 540,
   "rebalance_every": 30,
-  "updated_at": "2026-04-03T03:21:20.007542"
+  "updated_at": "2026-04-04T00:45:44.616409"
 }

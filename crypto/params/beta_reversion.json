@@ -1,15 +1,15 @@
 {
   "lookback": 60,
-  "beta_window": 360,
+  "beta_window": 180,
   "z_window": 90,
   "z_entry": 1.5,
   "z_exit": 0.0,
   "hurst_window": 240,
   "hurst_threshold": 0.5,
-  "trend_window": 240,
+  "trend_window": 120,
   "top_n": 1,
   "stop_atr_mult": 2.0,
   "max_hold": 30,
   "rebalance_every": 15,
-  "updated_at": "2026-04-03T07:09:16.623941"
+  "updated_at": "2026-04-04T01:36:01.734688"
 }

@@ -1,16 +1,16 @@
 {
-  "delta": 1e-05,
-  "R": 0.01,
+  "delta": 0.001,
+  "R": 0.001,
   "z_entry": 1.5,
-  "z_exit": 0.0,
-  "z_window": 120,
+  "z_exit": 0.5,
+  "z_window": 60,
   "warmup": 500,
-  "trend_window": 240,
-  "top_n": 1,
-  "stop_loss": 0.0,
+  "trend_window": 120,
+  "top_n": 2,
+  "stop_loss": 0.02,
   "take_profit": 0.002,
-  "max_hold": 120,
-  "regime_window": 0,
-  "rebalance_every": 30,
-  "updated_at": "2026-04-03T23:11:26.093436"
+  "max_hold": 30,
+  "regime_window": 540,
+  "rebalance_every": 15,
+  "updated_at": "2026-04-04T01:58:22.593707"
 }

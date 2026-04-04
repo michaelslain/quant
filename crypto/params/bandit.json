@@ -1,13 +1,13 @@
 {
-  "reward_window": 30,
+  "reward_window": 15,
   "exploration_factor": 0.05,
   "return_threshold": 0.005,
-  "trend_window": 240,
+  "trend_window": 360,
   "top_n": 1,
-  "take_profit": 0.002,
+  "take_profit": 0.004,
   "stop_loss": 0.0,
   "max_hold": 60,
-  "regime_window": 720,
-  "rebalance_every": 30,
-  "updated_at": "2026-04-03T19:41:11.633025"
+  "regime_window": 540,
+  "rebalance_every": 15,
+  "updated_at": "2026-04-04T01:11:32.094410"
 }
