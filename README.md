@@ -81,16 +81,41 @@ python main.py livetest 30    # 30 days of simulated live trading
 
 Optimized on 60 days, validated on 365 separate days (`--end-days-ago 430`).
 
+### Crypto
+
 | Strategy | Signal | Return | Sharpe | Max DD |
 |---|---|---|---|---|
-| **velocity_mr** | Price velocity vs "speed limit" (Relativistic BS) | 29.89% | **3.87** | -3.53% |
-| **kalman_reversion** | Kalman filter dynamic hedge ratio z-score | 16.61% | **3.06** | -2.10% |
-| **regime_mr** | VWAP dip + BTC regime gate | 47.38% | 2.23 | -8.69% |
-| **dispersion_mr** | Return dispersion filter + VWAP dip | 41.63% | 2.01 | -8.40% |
-| **adaptive_mr** | ATR-adaptive dip thresholds | 27.21% | 1.85 | -8.84% |
-| **breakout** | Channel breakout + ATR risk parity | 62.19% | 1.69 | -20.37% |
-| **hurst_mr** | Per-coin Hurst exponent selection | 4.36% | 1.64 | -1.69% |
-| **mean_reversion** | VWAP dip buying with trend filter | 17.55% | 1.54 | -4.03% |
+| **kalman_reversion** | Kalman filter dynamic hedge ratio z-score | 21.53% | **3.95** | -2.28% |
+| **ou_reversion** | Ornstein-Uhlenbeck process parameters | 11.62% | **3.59** | -1.32% |
+| **adaptive_mr** | ATR-adaptive dip thresholds | 133.00% | **3.28** | -12.04% |
+| **regime_mr** | VWAP dip + BTC regime gate | 67.54% | 2.99 | -6.26% |
+| **mean_reversion** | VWAP dip buying with trend filter | 104.55% | 2.52 | -17.60% |
+| **zscore_mr** | Cross-sectional z-score of recent returns | 42.33% | 2.30 | -8.91% |
+| **dispersion_mr** | Return dispersion filter + VWAP dip | 52.23% | 2.25 | -10.37% |
+| **lowvol_dip** | VWAP dips on below-average volume | 63.42% | 2.24 | -13.92% |
+| **breakout** | Channel breakout + ATR risk parity | 103.38% | 2.09 | -34.22% |
+| **accel_mr** | Price acceleration mean reversion | 17.56% | 1.96 | -4.75% |
+| **hurst_mr** | Per-coin Hurst exponent selection | 11.19% | 1.57 | -6.28% |
+| **ensemble_mr** | Ensemble of mean reversion signals | 18.29% | 1.47 | -9.35% |
+| **velocity_mr** | Price velocity vs "speed limit" (Relativistic BS) | 8.98% | 1.44 | -3.15% |
+| **bayesian** | Bayesian log-odds posterior scoring | 23.19% | 0.68 | -54.64% |
+| **monte_carlo** | Monte Carlo simulation scoring | -9.79% | 0.25 | -69.81% |
+| **fracdiff_mr** | Fractional differentiation z-score | 0.68% | 0.12 | -10.85% |
+| **momentum** | Trend-following momentum ranking | -11.91% | -0.03 | -57.33% |
+| **beta_reversion** | Beta-adjusted cross-sectional + Hurst regime | -0.03% | -0.43 | -0.04% |
+| **dual_velocity_mr** | Dual timeframe velocity mean reversion | -6.90% | -0.58 | -9.21% |
+| **rsi_mean_revert** | RSI oversold mean reversion | -30.68% | -0.89 | -52.08% |
+| **bandit** | Multi-armed bandit strategy selection | -80.23% | -1.76 | -91.52% |
+
+### Stock
+
+| Strategy | Signal | Return | Sharpe | Max DD |
+|---|---|---|---|---|
+| **mean_reversion** | VWAP dip buying with intra-rebalance take-profit | 57289.40% | **7.40** | -19.84% |
+| **rsi_mean_revert** | RSI oversold mean reversion | 4.07% | 0.26 | -7.75% |
+| **momentum** | Trend-following momentum ranking | -4.14% | 0.14 | -54.42% |
+| **ema_crossover** | EMA crossover signals | -52.65% | -0.59 | -76.14% |
+| **breakout** | Channel breakout + ATR risk parity | -59.94% | -1.31 | -69.90% |
 
 ## Project Structure
 
@@ -120,6 +145,11 @@ quant/
     params/               # optimized params (JSON)
   stock/
     strategies/           # 5 stock strategies
+      mean_reversion.py   # VWAP dip buying with intra-rebalance take-profit
+      momentum.py         # trend-following momentum ranking
+      breakout.py         # channel breakout with ATR risk parity
+      rsi_mean_revert.py  # RSI oversold mean reversion
+      ema_crossover.py    # EMA crossover signals
     params/
   .cache/                 # per-day parquet bar cache + result cache
 ```
