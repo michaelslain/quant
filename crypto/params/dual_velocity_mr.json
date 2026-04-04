@@ -1,0 +1,15 @@
+{
+  "fast_window": 10,
+  "slow_window": 120,
+  "lookback": 120,
+  "entry_frac": 0.6,
+  "slow_floor": 0.005,
+  "top_n": 2,
+  "trend_window": 240,
+  "take_profit": 0.002,
+  "stop_loss": 0.025,
+  "max_hold": 0,
+  "regime_window": 0,
+  "rebalance_every": 30,
+  "updated_at": "2026-04-03T20:46:35.850170"
+}

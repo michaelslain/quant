@@ -116,19 +116,31 @@ def pick_best_strategy(market, days=365, end_days_ago=430):
         )
 
         ret = result["total_return"] if result else None
-        results[name] = {"return": ret, "rebalance_every": rebalance_every}
-        print(f"  Return: {ret:+.2%}" if ret is not None else "  Return: N/A")
+        sharpe = result["sharpe"] if result else None
+        max_dd = result["max_drawdown"] if result else None
+        results[name] = {"return": ret, "sharpe": sharpe, "max_drawdown": max_dd, "rebalance_every": rebalance_every}
+        if ret is not None:
+            import math
+            score = sharpe * math.sqrt(1 + ret) * (1 - abs(max_dd))
+            print(f"  Return: {ret:+.2%} | Sharpe: {sharpe:.2f} | DD: {max_dd:.2%} | Score: {score:.2f}")
+        else:
+            print(f"  Return: N/A")
 
-    # Pick best by return (skip if all negative)
+    # Pick best by composite score: Sharpe * sqrt(1 + return) * (1 - |max_dd|)
+    import math
     best_name = None
-    best_ret = -999
+    best_score = -999
+    best_ret = 0
     for name, r in results.items():
-        if r["return"] is not None and r["return"] > best_ret:
-            best_ret = r["return"]
-            best_name = name
+        if r["return"] is not None and r["sharpe"] is not None:
+            score = r["sharpe"] * math.sqrt(1 + r["return"]) * (1 - abs(r["max_drawdown"]))
+            if score > best_score:
+                best_score = score
+                best_name = name
+                best_ret = r["return"]
 
-    if best_name is not None and best_ret < 0:
-        print(f"  All {market} strategies have negative returns — skipping.")
+    if best_name is not None and best_score < 0:
+        print(f"  All {market} strategies have negative scores — skipping.")
         best_name = None
         best_ret = 0
 
@@ -137,12 +149,18 @@ def pick_best_strategy(market, days=365, end_days_ago=430):
     log_file.parent.mkdir(parents=True, exist_ok=True)
     with open(log_file, "w") as f:
         f.write(f"=== {market.upper()} Strategy Selection ({days}d backtest) ===\n\n")
-        f.write(f"{'Strategy':<20} {'Return':>10}\n")
-        f.write(f"{'-'*30}\n")
-        for name, r in sorted(results.items(), key=lambda x: x[1]["return"] or -999, reverse=True):
-            ret_str = f"{r['return']:+.2%}" if r["return"] is not None else "N/A"
-            marker = " <-- BEST" if name == best_name else ""
-            f.write(f"{name:<20} {ret_str:>10}{marker}\n")
+        f.write(f"{'Strategy':<20} {'Return':>10} {'Sharpe':>8} {'Max DD':>8} {'Score':>8}\n")
+        f.write(f"{'-'*56}\n")
+        for name, r in sorted(results.items(), key=lambda x: (
+            (x[1]["sharpe"] or 0) * math.sqrt(1 + (x[1]["return"] or 0)) * (1 - abs(x[1]["max_drawdown"] or 0))
+            if x[1]["return"] is not None else -999
+        ), reverse=True):
+            if r["return"] is not None:
+                score = r["sharpe"] * math.sqrt(1 + r["return"]) * (1 - abs(r["max_drawdown"]))
+                marker = " <-- BEST" if name == best_name else ""
+                f.write(f"{name:<20} {r['return']:>+10.2%} {r['sharpe']:>8.2f} {r['max_drawdown']:>8.2%} {score:>8.2f}{marker}\n")
+            else:
+                f.write(f"{name:<20} {'N/A':>10}\n")
 
     return best_name, best_ret
 

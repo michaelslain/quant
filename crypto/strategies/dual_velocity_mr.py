@@ -13,28 +13,95 @@ def is_crypto(symbol):
 
 
 def _params_file():
-    return os.path.join(PARAMS_DIR, "bandit.json")
+    return os.path.join(PARAMS_DIR, "dual_velocity_mr.json")
 
 
-def _bandit_backtest_worker(closes_vals, cols, trend_np, kwargs,
-                            rebalance_every, initial_cash=100_000.0):
-    """UCB bandit backtest with full risk management suite."""
-    reward_window = kwargs["reward_window"]
-    exploration_factor = kwargs["exploration_factor"]
-    return_threshold = kwargs["return_threshold"]
-    trend_window = kwargs["trend_window"]
+def _dual_velocity_mr_backtest_worker(closes_vals, n_cols, kwargs, rebalance_every,
+                                       initial_cash=100_000.0, return_equity=False):
+    """
+    Dual-Velocity Mean Reversion backtest worker.
+
+    Uses two velocity windows: fast (short-term) and slow (long-term).
+    Entry when fast velocity is deeply negative (sharp recent drop) while
+    slow velocity is positive or neutral (longer-term uptrend intact).
+    This identifies temporary dislocations in an uptrend — the strongest
+    mean-reversion setup.
+
+    Math:
+        v_fast = log(P(t)) - log(P(t - fast_window))
+        v_slow = log(P(t)) - log(P(t - slow_window))
+        v_max_fast = rolling_max(|v_fast|, lookback)
+        norm_fast = v_fast / v_max_fast
+
+        Entry: norm_fast < -entry_frac (sharp short-term drop near speed limit)
+               AND v_slow > slow_floor (longer-term trend intact)
+               AND price > trend_sma AND regime gate
+
+    Inspired by: Relativistic BS (speed limit concept) + Mean-Field Games
+    (disagreement between time horizons signals temporary dislocation)
+    """
+    fast_window = kwargs["fast_window"]
+    slow_window = kwargs["slow_window"]
+    lookback = kwargs["lookback"]
+    entry_frac = kwargs["entry_frac"]
+    slow_floor = kwargs["slow_floor"]
     top_n = kwargs["top_n"]
+    trend_window = kwargs["trend_window"]
     take_profit = kwargs.get("take_profit", 0.0)
     stop_loss = kwargs.get("stop_loss", 0.0)
     max_hold = kwargs.get("max_hold", 0)
     regime_window = kwargs.get("regime_window", 0)
 
-    trend_sma = trend_np[trend_window]
-
-    warmup = max(reward_window, trend_window, regime_window) + 10
     n_rows = closes_vals.shape[0]
-    n_cols = closes_vals.shape[1]
-    rebal_indices = list(range(warmup, n_rows, rebalance_every))
+    warmup = max(slow_window + lookback, trend_window, regime_window) + 20
+
+    if n_rows <= warmup:
+        return None
+
+    # Log prices
+    log_prices = np.log(np.where(closes_vals > 0, closes_vals, np.nan))
+
+    # Fast velocity
+    v_fast = np.empty_like(log_prices)
+    v_fast[:] = np.nan
+    v_fast[fast_window:] = log_prices[fast_window:] - log_prices[:-fast_window]
+
+    # Slow velocity
+    v_slow = np.empty_like(log_prices)
+    v_slow[:] = np.nan
+    v_slow[slow_window:] = log_prices[slow_window:] - log_prices[:-slow_window]
+
+    # Rolling max of |v_fast| (speed limit)
+    abs_vf = np.abs(v_fast)
+    v_max = np.empty_like(abs_vf)
+    v_max[:] = np.nan
+    for i in range(fast_window + lookback, n_rows):
+        s = i - lookback
+        slice_data = abs_vf[s:i + 1]
+        with np.errstate(all='ignore'):
+            v_max[i] = np.nanmax(slice_data, axis=0)
+
+    # Normalized fast velocity
+    with np.errstate(invalid='ignore'):
+        norm_fast = np.where(v_max > 0, v_fast / v_max, 0)
+
+    # VWAP for take-profit
+    vwap_w = max(fast_window, 25)
+    cs = np.nancumsum(closes_vals, axis=0)
+    vwap = np.empty_like(closes_vals)
+    vwap[:] = np.nan
+    for i in range(vwap_w, n_rows):
+        s = i - vwap_w
+        vwap[i] = (cs[i] - cs[s]) / vwap_w
+    dips = np.where(vwap > 0, (closes_vals - vwap) / vwap, np.nan)
+
+    # Trend SMA
+    trend_cs = np.nancumsum(closes_vals, axis=0)
+    trend_sma = np.empty_like(closes_vals)
+    trend_sma[:] = np.nan
+    for i in range(trend_window, n_rows):
+        s = i - trend_window
+        trend_sma[i] = (trend_cs[i] - trend_cs[s]) / trend_window
 
     # BTC regime gate
     if regime_window > 0:
@@ -48,6 +115,8 @@ def _bandit_backtest_worker(closes_vals, cols, trend_np, kwargs,
     else:
         regime_ok = np.ones(n_rows, dtype=bool)
 
+    rebal_indices = list(range(warmup, n_rows, rebalance_every))
+
     cash = initial_cash
     holdings = {}
     entry_prices = {}
@@ -55,7 +124,7 @@ def _bandit_backtest_worker(closes_vals, cols, trend_np, kwargs,
     values = []
 
     for ri, i in enumerate(rebal_indices):
-        # Between rebalances: per-bar take-profit, stop-loss, max-hold
+        # Per-bar take-profit, stop-loss, max-hold
         if holdings:
             prev_i = rebal_indices[ri - 1] if ri > 0 else warmup
             for bar in range(prev_i + 1, i):
@@ -68,8 +137,9 @@ def _bandit_backtest_worker(closes_vals, cols, trend_np, kwargs,
                         if p <= entry_prices[ci] * (1 - stop_loss):
                             to_close.append(ci)
                             continue
-                    if take_profit > 0 and ci in entry_prices:
-                        if p >= entry_prices[ci] * (1 + take_profit):
+                    if take_profit > 0:
+                        d = dips[bar, ci]
+                        if not np.isnan(d) and d >= -take_profit:
                             to_close.append(ci)
                             continue
                     if max_hold > 0 and ci in entry_bars:
@@ -119,44 +189,28 @@ def _bandit_backtest_worker(closes_vals, cols, trend_np, kwargs,
             entry_bars = {}
             continue
 
-        # ----- UCB scoring -----
-        window_start = max(0, i - reward_window)
-        scores = {}
-
+        # Find dual-velocity candidates
+        candidates = []
         for ci in range(n_cols):
-            if np.isnan(trend_sma[i, ci]) or closes_vals[i, ci] < trend_sma[i, ci]:
+            t = trend_sma[i, ci]
+            if np.isnan(t) or closes_vals[i, ci] < t:
                 continue
-
-            bar_returns = []
-            for t in range(window_start + 1, i + 1):
-                prev = closes_vals[t - 1, ci]
-                cur = closes_vals[t, ci]
-                if np.isnan(prev) or np.isnan(cur) or prev <= 0:
-                    continue
-                bar_returns.append((cur - prev) / prev)
-
-            if len(bar_returns) == 0:
+            nf = norm_fast[i, ci]
+            vs = v_slow[i, ci]
+            if np.isnan(nf) or np.isnan(vs):
                 continue
-
-            avg_reward = np.mean(bar_returns)
-            total_periods = len(bar_returns)
-            played = sum(1 for r in bar_returns if r > return_threshold)
-
-            if avg_reward <= 0:
+            # Fast velocity deeply negative (near speed limit)
+            if nf >= -entry_frac:
                 continue
+            # Slow velocity above floor (longer-term trend intact)
+            if vs < slow_floor:
+                continue
+            candidates.append((ci, nf))
 
-            if played == 0:
-                ucb_score = avg_reward + exploration_factor * 10.0
-            else:
-                ucb_score = avg_reward + exploration_factor * np.sqrt(
-                    np.log(total_periods) / played
-                )
+        candidates.sort(key=lambda x: x[1])  # most negative first
+        winners = [ci for ci, _ in candidates[:top_n]]
 
-            scores[ci] = ucb_score
-
-        winners = sorted(scores, key=scores.get, reverse=True)[:top_n]
-
-        # Liquidate current holdings
+        # Liquidate
         for ci, qty in holdings.items():
             p = closes_vals[i, ci]
             if not np.isnan(p):
@@ -175,70 +229,71 @@ def _bandit_backtest_worker(closes_vals, cols, trend_np, kwargs,
             if np.isnan(p) or p <= 0:
                 continue
             qty = per_stock / p
-            holdings[ci] = qty
-            entry_prices[ci] = p
-            entry_bars[ci] = i
-            cash -= qty * p
+            if qty > 0:
+                holdings[ci] = qty
+                entry_prices[ci] = p
+                entry_bars[ci] = i
+                cash -= qty * p
 
     if len(values) < 2:
         return None
 
     pv = np.array(values)
     total_return = (pv[-1] - initial_cash) / initial_cash
-    returns = np.diff(pv) / pv[:-1]
-    std = returns.std()
+    returns_pv = np.diff(pv) / pv[:-1]
+    std = returns_pv.std()
     if std > 0:
         periods_per_year = (1440 * 365) / rebalance_every
-        sharpe = (returns.mean() / std) * np.sqrt(periods_per_year)
+        sharpe = (returns_pv.mean() / std) * np.sqrt(periods_per_year)
     else:
         sharpe = 0
 
+    if return_equity:
+        return {"total_return": total_return, "sharpe": sharpe, "equity_curve": values}
     return {"total_return": total_return, "sharpe": sharpe}
 
 
-class BanditStrategy:
+class DualVelocityMRStrategy:
     """
-    Multi-Armed Bandit / Upper Confidence Bound (UCB) strategy for crypto.
+    Dual-Velocity Mean Reversion for crypto.
 
-    Treats each coin as a slot-machine arm and balances exploitation (trade
-    profitable coins) with exploration (try under-traded coins).
-
-    UCB score = avg_reward + exploration_factor * sqrt(ln(total_periods) / periods_held)
-
-    A trend filter (price > SMA) gates entry; if no coin passes the filter the
-    strategy liquidates and holds cash.
+    Buys when fast (short-term) velocity hits the negative speed limit while
+    slow (long-term) velocity remains positive — temporary dislocation in an
+    uptrend. Combines the Relativistic BS speed limit concept with multi-horizon
+    disagreement from Mean-Field Games theory.
     """
 
     GRID = {
-        "reward_window": [15, 30, 60, 120],
-        "exploration_factor": [0.01, 0.05, 0.1, 0.5],
-        "return_threshold": [0.001, 0.002, 0.005, 0.01],
-        "trend_window": [120, 240, 360],
+        "fast_window": [5, 10, 15],
+        "slow_window": [60, 120, 240],
+        "lookback": [120, 240],
+        "entry_frac": [0.4, 0.5, 0.6, 0.7],
+        "slow_floor": [-0.01, 0.0, 0.005],
         "top_n": [1, 2],
-        "take_profit": [0.0, 0.002, 0.004],
-        "stop_loss": [0.0, 0.015, 0.025],
+        "trend_window": [120, 240],
+        "take_profit": [0.0, 0.002],
+        "stop_loss": [0.0, 0.025],
         "max_hold": [0, 30, 60],
-        "regime_window": [0, 540, 720],
+        "regime_window": [0, 540],
     }
     REBALANCE_OPTIONS = [15, 30]
 
     def __init__(self, api: tradeapi.REST, symbols: list[str],
-                 reward_window: int = 60,
-                 exploration_factor: float = 1.0,
-                 return_threshold: float = 0.001,
-                 trend_window: int = 120,
-                 top_n: int = 2,
-                 take_profit: float = 0.0,
-                 stop_loss: float = 0.0,
-                 max_hold: int = 0,
+                 fast_window: int = 10, slow_window: int = 120,
+                 lookback: int = 240, entry_frac: float = 0.5,
+                 slow_floor: float = 0.0, top_n: int = 1,
+                 trend_window: int = 120, take_profit: float = 0.002,
+                 stop_loss: float = 0.0, max_hold: int = 0,
                  regime_window: int = 0):
         self.api = api
         self.symbols = symbols
-        self.reward_window = reward_window
-        self.exploration_factor = exploration_factor
-        self.return_threshold = return_threshold
-        self.trend_window = trend_window
+        self.fast_window = fast_window
+        self.slow_window = slow_window
+        self.lookback = lookback
+        self.entry_frac = entry_frac
+        self.slow_floor = slow_floor
         self.top_n = top_n
+        self.trend_window = trend_window
         self.take_profit = take_profit
         self.stop_loss = stop_loss
         self.max_hold = max_hold
@@ -250,28 +305,26 @@ class BanditStrategy:
         if os.path.exists(pf):
             with open(pf) as f:
                 p = json.load(f)
-            self.reward_window = p.get("reward_window", self.reward_window)
-            self.exploration_factor = p.get("exploration_factor", self.exploration_factor)
-            self.return_threshold = p.get("return_threshold", self.return_threshold)
-            self.trend_window = p.get("trend_window", self.trend_window)
-            self.top_n = p.get("top_n", self.top_n)
-            self.take_profit = p.get("take_profit", self.take_profit)
-            self.stop_loss = p.get("stop_loss", self.stop_loss)
-            self.max_hold = p.get("max_hold", self.max_hold)
-            self.regime_window = p.get("regime_window", self.regime_window)
+            for attr in ["fast_window", "slow_window", "lookback", "entry_frac",
+                         "slow_floor", "top_n", "trend_window", "take_profit",
+                         "stop_loss", "max_hold", "regime_window"]:
+                if attr in p:
+                    setattr(self, attr, p[attr])
             print(f"Loaded params from {pf}")
 
-    def _save_params(self, rebalance_every=15, params_suffix=None):
+    def _save_params(self, rebalance_every=30, params_suffix=None):
         os.makedirs(PARAMS_DIR, exist_ok=True)
         pf = _params_file()
         if params_suffix:
             pf = pf.replace(".json", f"_{params_suffix}.json")
         params = {
-            "reward_window": self.reward_window,
-            "exploration_factor": self.exploration_factor,
-            "return_threshold": self.return_threshold,
-            "trend_window": self.trend_window,
+            "fast_window": self.fast_window,
+            "slow_window": self.slow_window,
+            "lookback": self.lookback,
+            "entry_frac": self.entry_frac,
+            "slow_floor": self.slow_floor,
             "top_n": self.top_n,
+            "trend_window": self.trend_window,
             "take_profit": self.take_profit,
             "stop_loss": self.stop_loss,
             "max_hold": self.max_hold,
@@ -283,12 +336,8 @@ class BanditStrategy:
             json.dump(params, f, indent=2)
         print(f"Saved params to {pf}")
 
-    # ------------------------------------------------------------------
-    # Optimisation
-    # ------------------------------------------------------------------
-
     def optimize(self, days: int = 7, fixed_interval: int = None, params_suffix: str = None):
-        print(f"Optimizing bandit strategy over {days} days of data...")
+        print(f"Optimizing dual-velocity MR strategy over {days} days of data...")
         history = self._fetch_history(days)
         if not history:
             print("No data -- keeping current params.")
@@ -297,48 +346,35 @@ class BanditStrategy:
         closes = pd.DataFrame({sym: df["close"] for sym, df in history.items()})
         closes = closes.dropna(how="all").ffill()
 
-        # Precompute trend SMAs
-        print("Precomputing indicators...")
-        trend_cache = {}
-        for tw in self.GRID["trend_window"]:
-            trend_cache[tw] = closes.rolling(tw, min_periods=20).mean()
-
         import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
         from optimize import bayesian_search
 
         closes_vals = closes.values
-        cols = closes.columns.tolist()
-        trend_np = {k: v.values for k, v in trend_cache.items()}
+        n_cols = closes_vals.shape[1]
 
         rebal_options = [fixed_interval] if fixed_interval else self.REBALANCE_OPTIONS
-        fixed_args = (closes_vals, cols, trend_np)
-
-        def _bandit_worker_dict(closes_vals, cols, trend_np, kwargs, rebalance_every):
-            return _bandit_backtest_worker(closes_vals, cols, trend_np,
-                                           kwargs, rebalance_every)
+        fixed_args = (closes_vals, n_cols)
 
         best_params, best_rebal, best_sharpe, best_return = bayesian_search(
-            _bandit_worker_dict, self.GRID, rebal_options, fixed_args, n_trials=300)
+            _dual_velocity_mr_backtest_worker, self.GRID, rebal_options, fixed_args,
+            n_trials=300)
 
         if best_params:
             for k, v in best_params.items():
-                setattr(self, k, v)
+                if hasattr(self, k):
+                    setattr(self, k, v)
             label = "Optimal" if best_return > 0 else "Best (still negative)"
             print(f"\n{label} params found:")
-            print(f"  reward_window={self.reward_window}, "
-                  f"exploration_factor={self.exploration_factor}")
-            print(f"  return_threshold={self.return_threshold}, "
-                  f"trend_window={self.trend_window}, top_n={self.top_n}")
-            print(f"  take_profit={self.take_profit}, stop_loss={self.stop_loss}")
-            print(f"  max_hold={self.max_hold}, regime_window={self.regime_window}")
+            for k, v in best_params.items():
+                print(f"  {k}={v}")
             print(f"  rebalance_every={best_rebal}min")
             print(f"  Backtest return: {best_return:.2%} | Sharpe: {best_sharpe:.2f}")
             self._save_params(best_rebal, params_suffix=params_suffix)
             return best_rebal
         else:
             print("No valid params found -- keeping defaults.")
-            return 15
+            return 30
 
     def _fetch_history(self, days: int, end_days_ago: int = 1) -> dict[str, pd.DataFrame]:
         import sys
@@ -346,74 +382,59 @@ class BanditStrategy:
         from backtest import fetch_history
         return fetch_history(self.api, self.symbols, days, end_days_ago=end_days_ago)
 
-    # ------------------------------------------------------------------
-    # Live trading
-    # ------------------------------------------------------------------
-
     def get_momentum_scores(self) -> pd.Series:
-        """Return UCB scores for each symbol (matches interface name)."""
         end = datetime.now()
-        lookback = self.reward_window + self.trend_window + 30
-        start = end - timedelta(minutes=lookback)
+        lookback_bars = max(self.slow_window + self.lookback, self.trend_window) + 100
+        start = end - timedelta(minutes=lookback_bars)
 
-        scores = {}
-        total_symbols = len(self.symbols)
-
+        all_bars = {}
         for symbol in self.symbols:
             try:
                 bars = self.api.get_crypto_bars(
-                    symbol,
-                    tradeapi.TimeFrame.Minute,
+                    symbol, tradeapi.TimeFrame.Minute,
                     start=start.strftime("%Y-%m-%dT%H:%M:%SZ"),
                     end=end.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    limit=lookback,
+                    limit=lookback_bars,
                 ).df
-
-                if len(bars) < self.reward_window:
-                    continue
-
-                closes = bars["close"]
-
-                # Trend filter: current price must be above SMA
-                trend_sma = closes.rolling(self.trend_window, min_periods=20).mean()
-                if closes.iloc[-1] <= trend_sma.iloc[-1]:
-                    continue
-
-                # Compute per-bar returns over the reward window
-                recent = closes.iloc[-self.reward_window:]
-                bar_returns = recent.pct_change().dropna()
-                if len(bar_returns) == 0:
-                    continue
-
-                avg_reward = bar_returns.mean()
-                total_periods = len(bar_returns)
-                played = (bar_returns > self.return_threshold).sum()
-
-                if played == 0:
-                    ucb_score = avg_reward + self.exploration_factor * 10.0
-                else:
-                    ucb_score = avg_reward + self.exploration_factor * np.sqrt(
-                        np.log(total_periods) / played
-                    )
-
-                scores[symbol] = ucb_score
-
+                if len(bars) > 0:
+                    all_bars[symbol] = bars
             except Exception as e:
                 print(f"Error fetching {symbol}: {e}")
+        if not all_bars:
+            return pd.Series(dtype=float)
 
-        return pd.Series(scores).sort_values(ascending=False)
+        closes = pd.DataFrame({s: b["close"] for s, b in all_bars.items()})
+        closes = closes.dropna(how="all").ffill()
+        log_p = np.log(closes)
+        v_fast = log_p - log_p.shift(self.fast_window)
+        v_slow = log_p - log_p.shift(self.slow_window)
+        abs_vf = v_fast.abs()
+        v_max = abs_vf.rolling(self.lookback).max()
+        norm_fast = v_fast / v_max
+        trend_sma = closes.rolling(self.trend_window, min_periods=20).mean()
+
+        scores = {}
+        for symbol in closes.columns:
+            price = closes[symbol].iloc[-1]
+            t = trend_sma[symbol].iloc[-1]
+            if np.isnan(t) or price < t:
+                continue
+            nf = norm_fast[symbol].iloc[-1]
+            vs = v_slow[symbol].iloc[-1]
+            if np.isnan(nf) or np.isnan(vs):
+                continue
+            if nf < -self.entry_frac and vs >= self.slow_floor:
+                scores[symbol] = nf
+        return pd.Series(scores).sort_values()
 
     def get_target_positions(self) -> dict[str, float]:
         scores = self.get_momentum_scores()
         picks = scores.head(self.top_n)
-
         if picks.empty:
             return {}
-
         account = self.api.get_account()
         cash = float(account.cash) * 0.95
         per_stock = cash / len(picks)
-
         targets = {}
         for symbol in picks.index:
             try:
@@ -423,40 +444,30 @@ class BanditStrategy:
                     targets[symbol] = qty
             except Exception as e:
                 print(f"Error getting price for {symbol}: {e}")
-
         return targets
 
     def rebalance(self):
         import time as _time
-        print(f"\n[{datetime.now()}] Running bandit strategy...")
-
+        print(f"\n[{datetime.now()}] Running dual-velocity MR strategy...")
         scores = self.get_momentum_scores()
         picks = list(scores.head(self.top_n).index)
         print(f"Picks: {picks}")
-
         if not picks:
-            print("No bandit candidates found -- going to cash.")
-            # Liquidate everything when no coins pass the trend filter
+            print("No dual-velocity MR candidates -- going to cash.")
             for pos in self.api.list_positions():
                 sym = pos.symbol
                 qty = float(pos.qty)
                 if qty > 0:
-                    print(f"  Closing {sym} ({qty} shares)")
                     try:
-                        self.api.submit_order(
-                            symbol=sym, qty=abs(qty), side="sell",
-                            type="market",
-                            time_in_force="gtc" if is_crypto(sym) else "day",
-                        )
+                        self.api.submit_order(symbol=sym, qty=abs(qty), side="sell",
+                                              type="market",
+                                              time_in_force="gtc" if is_crypto(sym) else "day")
                     except Exception as e:
                         print(f"  Error closing {sym}: {e}")
             return
-
-        # Close positions not in picks
         current = {}
         for pos in self.api.list_positions():
             current[pos.symbol] = float(pos.qty)
-
         for symbol, qty in current.items():
             normalized = symbol
             for pick in picks:
@@ -464,23 +475,16 @@ class BanditStrategy:
                     normalized = pick
                     break
             if normalized not in picks:
-                print(f"  Closing {symbol} ({qty} shares)")
                 try:
-                    self.api.submit_order(
-                        symbol=symbol, qty=abs(qty), side="sell",
-                        type="market",
-                        time_in_force="gtc" if is_crypto(symbol) else "day",
-                    )
+                    self.api.submit_order(symbol=symbol, qty=abs(qty), side="sell",
+                                          type="market",
+                                          time_in_force="gtc" if is_crypto(symbol) else "day")
                 except Exception as e:
                     print(f"  Error closing {symbol}: {e}")
-
         _time.sleep(2)
-
-        # Size buys with fresh cash
         account = self.api.get_account()
         cash = float(account.cash) * 0.95
         per_stock = cash / len(picks)
-
         for symbol in picks:
             held_sym = symbol.replace("/", "")
             current_qty = current.get(held_sym, current.get(symbol, 0))
@@ -488,46 +492,12 @@ class BanditStrategy:
                 price = self.api.get_latest_crypto_trades([symbol])[symbol].price
                 target_qty = round(per_stock / price, 4)
                 diff = target_qty - current_qty
-
                 if diff > 0:
-                    print(f"  Buying {diff} of {symbol}")
-                    self.api.submit_order(
-                        symbol=symbol, qty=diff, side="buy",
-                        type="market", time_in_force="gtc",
-                    )
+                    self.api.submit_order(symbol=symbol, qty=diff, side="buy",
+                                          type="market", time_in_force="gtc")
                 elif diff < 0:
-                    print(f"  Selling {abs(diff)} of {symbol}")
-                    self.api.submit_order(
-                        symbol=symbol, qty=abs(diff), side="sell",
-                        type="market", time_in_force="gtc",
-                    )
-                else:
-                    print(f"  Holding {symbol} ({current_qty})")
+                    self.api.submit_order(symbol=symbol, qty=abs(diff), side="sell",
+                                          type="market", time_in_force="gtc")
             except Exception as e:
                 print(f"  Error trading {symbol}: {e}")
-
         print("Rebalance complete.")
-
-
-if __name__ == "__main__":
-    import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-    from dotenv import load_dotenv
-    load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
-
-    CRYPTO_SYMBOLS = [
-        "BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD",
-        "XRP/USD", "ADA/USD", "LINK/USD", "LTC/USD",
-    ]
-
-    args = [a for a in sys.argv[1:]]
-    api = tradeapi.REST(
-        key_id=os.environ["ALPACA_API_KEY"],
-        secret_key=os.environ["ALPACA_SECRET_KEY"],
-        base_url="https://paper-api.alpaca.markets",
-    )
-
-    days = int(args[0]) if args else 7
-    print(f"Optimizing bandit strategy...\n")
-    strategy = BanditStrategy(api=api, symbols=CRYPTO_SYMBOLS)
-    strategy.optimize(days=days)

@@ -1,0 +1,15 @@
+{
+  "vel_window": 5,
+  "accel_window": 15,
+  "lookback": 60,
+  "vel_frac": 0.3,
+  "accel_thresh": 0.0,
+  "top_n": 1,
+  "trend_window": 540,
+  "take_profit": 0.002,
+  "stop_loss": 0.0,
+  "max_hold": 30,
+  "regime_window": 540,
+  "rebalance_every": 15,
+  "updated_at": "2026-04-03T21:18:16.782806"
+}

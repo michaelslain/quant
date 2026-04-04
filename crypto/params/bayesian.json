@@ -1,12 +1,15 @@
 {
-  "sma_period": 20,
-  "rsi_period": 20,
-  "momentum_weight": 2.0,
+  "sma_period": 10,
+  "rsi_period": 14,
+  "momentum_weight": 1.0,
   "volume_weight": 0.5,
   "rsi_weight": 0.5,
-  "threshold": 0.7,
+  "threshold": 0.65,
   "trend_window": 240,
   "top_n": 1,
-  "rebalance_every": 30,
-  "updated_at": "2026-04-03T03:31:27.655437"
+  "take_profit": 0.002,
+  "stop_loss": 0.0,
+  "max_hold": 30,
+  "regime_window": 540,
+  "rebalance_every": 30
 }

@@ -14,114 +14,136 @@ def is_crypto(symbol):
 
 
 def _params_file():
-    return os.path.join(PARAMS_DIR, "beta_reversion.json")
+    return os.path.join(PARAMS_DIR, "ou_reversion.json")
 
 
-def _compute_hurst(series, max_chunk=256):
+def _estimate_ou_params(series):
     """
-    Estimate Hurst exponent via rescaled range (R/S) method.
+    Estimate Ornstein-Uhlenbeck parameters via OLS on discrete observations.
 
-    For sub-windows of sizes [32, 64, 128, 256]:
-        Y(t) = X(t) - mean(X)
-        Z(t) = cumsum(Y)
-        R = max(Z) - min(Z)
-        S = std(X)
-        R/S = R / S
+    Model: S(t+1) = a * S(t) + b + epsilon
+    where a = exp(-theta), b = mu * (1 - a)
 
-    H = slope of log(R/S) vs log(chunk_size)
-
-    H < 0.45 => mean-reverting
-    H > 0.55 => trending
+    Returns: (theta, mu, sigma_eq, half_life) or None if not mean-reverting
     """
     x = series.values
-    n = len(x)
-    chunk_sizes = [s for s in [32, 64, 128, 256] if s <= min(max_chunk, n // 2)]
-    if len(chunk_sizes) < 2:
-        return 0.5  # not enough data, assume random walk
+    if len(x) < 30:
+        return None
 
-    log_sizes = []
-    log_rs = []
+    y = x[1:]
+    x_lag = x[:-1]
 
-    for size in chunk_sizes:
-        n_chunks = n // size
-        if n_chunks < 1:
-            continue
-        rs_values = []
-        for i in range(n_chunks):
-            chunk = x[i * size:(i + 1) * size]
-            mean_c = chunk.mean()
-            y = chunk - mean_c
-            z = np.cumsum(y)
-            r = z.max() - z.min()
-            s = chunk.std(ddof=1)
-            if s > 0:
-                rs_values.append(r / s)
-        if rs_values:
-            log_sizes.append(np.log(size))
-            log_rs.append(np.log(np.mean(rs_values)))
+    # OLS: y = a * x_lag + b
+    n = len(y)
+    x_mean = x_lag.mean()
+    y_mean = y.mean()
+    cov_xy = ((x_lag - x_mean) * (y - y_mean)).sum()
+    var_x = ((x_lag - x_mean) ** 2).sum()
 
-    if len(log_sizes) < 2:
-        return 0.5
+    if var_x <= 0:
+        return None
 
-    # Linear regression: H = slope of log(R/S) vs log(n)
-    coeffs = np.polyfit(log_sizes, log_rs, 1)
-    return coeffs[0]
+    a = cov_xy / var_x
+    b = y_mean - a * x_mean
+
+    # a must be in (0, 1) for mean reversion
+    if a <= 0 or a >= 1:
+        return None
+
+    theta = -np.log(a)  # mean-reversion speed
+    mu = b / (1 - a)    # long-run mean
+    half_life = np.log(2) / theta  # bars to half-revert
+
+    # Residual volatility
+    residuals = y - (a * x_lag + b)
+    sigma_res = residuals.std()
+    # Equilibrium volatility: sigma_eq = sigma_res / sqrt((1 - a^2) / (2*theta))
+    denom = (1 - a**2) / (2 * theta)
+    if denom <= 0:
+        return None
+    sigma_eq = sigma_res / np.sqrt(denom)
+
+    return theta, mu, sigma_eq, half_life
 
 
-def _beta_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
-                                     rebalance_every, initial_cash=100_000.0,
-                                     return_equity=False):
+def _ou_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
+                                   rebalance_every, initial_cash=100_000.0,
+                                   return_equity=False):
     """
-    Beta-adjusted cross-sectional mean reversion backtest worker.
+    Ornstein-Uhlenbeck mean reversion backtest worker.
+
+    For each asset, estimates OU parameters on log-prices over a rolling window.
+    Only trades assets with half-life in [min_hl, max_hl] (tradeable at this
+    rebalance frequency). BTC regime gate: only trades when BTC > regime SMA.
 
     Math:
-        r_i(t) = (P_i(t) - P_i(t-1)) / P_i(t-1)
-        beta_i = Cov(r_i, r_BTC) / Var(r_BTC)  over beta_window
-        residual_i = R_i(t,L) - beta_i * R_BTC(t,L)
-        z_i = (residual_i - mu) / sigma  over z_window
-        Entry: z_i < -z_entry AND hurst(BTC) < hurst_threshold
-        Exit: z_i > -z_exit OR stop-loss OR max_hold
+        dS = theta * (mu - S) * dt + sigma * dW
+        half_life = ln(2) / theta
+        deviation = (S - mu) / sigma_eq
+        Entry: deviation < -entry_dev AND half_life in [min_hl, max_hl] AND BTC bullish
+        Exit: deviation > -exit_dev OR stop-loss OR max_hold OR BTC bearish
     """
-    lookback = kwargs["lookback"]
-    beta_window = kwargs["beta_window"]
-    z_window = kwargs["z_window"]
-    z_entry = kwargs["z_entry"]
-    z_exit = kwargs["z_exit"]
-    hurst_window = kwargs["hurst_window"]
-    hurst_threshold = kwargs["hurst_threshold"]
+    ou_window = kwargs["ou_window"]
+    min_hl = kwargs["min_hl"]
+    max_hl = kwargs["max_hl"]
+    entry_dev = kwargs["entry_dev"]
+    exit_dev = kwargs["exit_dev"]
     trend_window = kwargs["trend_window"]
     top_n = kwargs["top_n"]
-    stop_atr_mult = kwargs["stop_atr_mult"]
+    stop_loss = kwargs["stop_loss"]
     max_hold = kwargs["max_hold"]
+    regime_window = kwargs.get("regime_window", 720)
+    take_profit = kwargs.get("take_profit", 0.0)
 
     n_rows = closes_vals.shape[0]
-    warmup = max(beta_window, z_window + lookback, hurst_window, trend_window) + 20
+    warmup = max(ou_window, trend_window, regime_window) + 20
 
     if n_rows <= warmup:
         return None
 
-    # Precompute returns
+    # Precompute log prices
+    log_prices = np.log(np.where(closes_vals > 0, closes_vals, np.nan))
+
+    # Precompute trend SMA using cumsum
+    trend_cs = np.nancumsum(closes_vals, axis=0)
+    trend_sma = np.full_like(closes_vals, np.nan)
+    for i in range(trend_window, n_rows):
+        s = i - trend_window
+        trend_sma[i] = (trend_cs[i] - trend_cs[s]) / trend_window
+
+    # Precompute returns for volatility sizing
     returns = np.empty_like(closes_vals)
     returns[0, :] = 0
     returns[1:, :] = (closes_vals[1:] - closes_vals[:-1]) / np.where(
         closes_vals[:-1] > 0, closes_vals[:-1], np.nan
     )
 
-    btc_returns = returns[:, btc_col]
+    # Precompute rolling OU params (deviation, half_life) every `rebalance_every` bars
+    # This avoids re-estimating OLS at every rebalance (expensive)
+    ou_dev = np.full((n_rows, n_cols), np.nan)  # deviation from mu in sigma_eq units
+    ou_hl = np.full((n_rows, n_cols), np.nan)   # half-life
+    ou_theta = np.full((n_rows, n_cols), np.nan)
 
-    # Precompute ATR (using absolute returns as proxy since we only have closes)
-    atr = np.empty(n_rows)
-    atr[:] = np.nan
-    for i in range(60, n_rows):
-        atr[i] = np.nanmean(np.abs(returns[i-60:i, :].mean(axis=1)))
-
-    # Precompute trend SMA for all columns
-    trend_sma = np.empty_like(closes_vals)
-    trend_sma[:] = np.nan
-    for i in range(trend_window, n_rows):
-        trend_sma[i] = np.nanmean(closes_vals[i-trend_window:i], axis=0)
-
+    # Compute OU at every rebalance point
     rebal_indices = list(range(warmup, n_rows, rebalance_every))
+    for i in rebal_indices:
+        for ci in range(n_cols):
+            log_slice = log_prices[i-ou_window:i, ci]
+            valid = log_slice[~np.isnan(log_slice)]
+            if len(valid) < 30:
+                continue
+            ou = _estimate_ou_params(pd.Series(valid))
+            if ou is None:
+                continue
+            theta, mu, sigma_eq, half_life = ou
+            if sigma_eq <= 0:
+                continue
+            current_log = log_prices[i, ci]
+            if np.isnan(current_log):
+                continue
+            ou_dev[i, ci] = (current_log - mu) / sigma_eq
+            ou_hl[i, ci] = half_life
+            ou_theta[i, ci] = theta
 
     cash = initial_cash
     holdings = {}  # col_idx -> qty
@@ -139,11 +161,14 @@ def _beta_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
                     p = closes_vals[bar, ci]
                     if np.isnan(p):
                         continue
-                    # ATR stop-loss: entry - stop_atr_mult * ATR
-                    if stop_atr_mult > 0 and ci in entry_prices:
-                        bar_atr = atr[bar] if not np.isnan(atr[bar]) else 0
-                        stop_price = entry_prices[ci] * (1 - stop_atr_mult * bar_atr * 100)
-                        if p <= stop_price:
+                    # Stop-loss
+                    if stop_loss > 0 and ci in entry_prices:
+                        if p <= entry_prices[ci] * (1 - stop_loss):
+                            to_close.append(ci)
+                            continue
+                    # Take-profit: exit when price rose by take_profit from entry
+                    if take_profit > 0 and ci in entry_prices:
+                        if p >= entry_prices[ci] * (1 + take_profit):
                             to_close.append(ci)
                             continue
                     # Max hold
@@ -168,14 +193,11 @@ def _beta_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
                 port_value += qty * p
         values.append(port_value)
 
-        # Drawdown control:
-        #   dd < -15% => go to cash
-        #   dd < -8% => half position size
+        # Drawdown control
         peak = max(values) if values else initial_cash
         dd = (port_value - peak) / peak if peak > 0 else 0
         dd_scale = 1.0
         if dd < -0.15:
-            # Liquidate everything
             for ci, qty in holdings.items():
                 p = closes_vals[i, ci]
                 if not np.isnan(p):
@@ -187,118 +209,65 @@ def _beta_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
         elif dd < -0.08:
             dd_scale = 0.5
 
-        # Hurst regime gate on BTC
-        btc_slice = closes_vals[i-hurst_window:i, btc_col]
-        btc_slice_clean = btc_slice[~np.isnan(btc_slice)]
-        if len(btc_slice_clean) < 64:
-            continue
+        # BTC regime gate: only trade when BTC > regime SMA (bullish)
+        if btc_col >= 0 and regime_window > 0:
+            btc_price = closes_vals[i, btc_col]
+            btc_regime_sma = np.nanmean(closes_vals[max(0, i-regime_window):i, btc_col])
+            if not np.isnan(btc_price) and not np.isnan(btc_regime_sma):
+                if btc_price < btc_regime_sma:
+                    # Bearish regime — liquidate and skip
+                    for ci, qty in holdings.items():
+                        p = closes_vals[i, ci]
+                        if not np.isnan(p):
+                            cash += qty * p
+                    holdings = {}
+                    entry_prices = {}
+                    entry_bars = {}
+                    continue
 
-        # Compute Hurst
-        chunk_sizes = [s for s in [32, 64, 128, 256] if s <= len(btc_slice_clean) // 2]
-        if len(chunk_sizes) < 2:
-            continue
-        log_sizes = []
-        log_rs = []
-        for size in chunk_sizes:
-            n_chunks = len(btc_slice_clean) // size
-            rs_vals = []
-            for c in range(n_chunks):
-                chunk = btc_slice_clean[c*size:(c+1)*size]
-                mean_c = chunk.mean()
-                y = chunk - mean_c
-                z = np.cumsum(y)
-                r = z.max() - z.min()
-                s = chunk.std(ddof=1)
-                if s > 0:
-                    rs_vals.append(r / s)
-            if rs_vals:
-                log_sizes.append(np.log(size))
-                log_rs.append(np.log(np.mean(rs_vals)))
-
-        if len(log_sizes) < 2:
-            continue
-        hurst = np.polyfit(log_sizes, log_rs, 1)[0]
-
-        if hurst > hurst_threshold:
-            # Trending regime — liquidate and skip
-            for ci, qty in holdings.items():
-                p = closes_vals[i, ci]
-                if not np.isnan(p):
-                    cash += qty * p
-            holdings = {}
-            entry_prices = {}
-            entry_bars = {}
-            continue
-
-        # Hurst ambiguous zone: reduce sizing
-        hurst_scale = 0.5 if hurst > 0.45 else 1.0
-
-        # Compute beta-adjusted residuals for each non-BTC column
-        #   beta_i = Cov(r_i, r_BTC) / Var(r_BTC) over beta_window
-        #   residual_i = R_i(lookback) - beta_i * R_BTC(lookback)
-        #   z_i = (residual - mu) / sigma over z_window
-        btc_ret_window = btc_returns[i-beta_window:i]
-        btc_var = np.nanvar(btc_ret_window)
-        if btc_var <= 0:
-            continue
-
-        # Cumulative returns over lookback
-        btc_cum = np.nansum(btc_returns[i-lookback:i])
-
-        z_scores = {}
+        # Use precomputed OU params for entry scoring
+        ou_scores = {}
         for ci in range(n_cols):
-            if ci == btc_col:
-                continue
             # Trend filter
             t = trend_sma[i, ci]
             if np.isnan(t) or closes_vals[i, ci] < t:
                 continue
 
-            # Beta
-            ret_window = returns[i-beta_window:i, ci]
-            cov = np.nanmean((ret_window - np.nanmean(ret_window)) *
-                             (btc_ret_window - np.nanmean(btc_ret_window)))
-            beta = cov / btc_var
-
-            # Residual over lookback
-            cum_ret = np.nansum(returns[i-lookback:i, ci])
-            residual = cum_ret - beta * btc_cum
-
-            # Z-score: need rolling mean/std of residuals over z_window
-            # Compute residuals for the past z_window rebalance points
-            residuals = []
-            for j in range(max(warmup, i - z_window), i):
-                btc_cum_j = np.nansum(btc_returns[j-lookback:j]) if j >= lookback else 0
-                ret_j = np.nansum(returns[j-lookback:j, ci]) if j >= lookback else 0
-                residuals.append(ret_j - beta * btc_cum_j)
-
-            if len(residuals) < 20:
-                continue
-            residuals = np.array(residuals)
-            mu = residuals.mean()
-            sigma = residuals.std()
-            if sigma <= 0:
+            deviation = ou_dev[i, ci]
+            half_life = ou_hl[i, ci]
+            if np.isnan(deviation) or np.isnan(half_life):
                 continue
 
-            z = (residual - mu) / sigma
-            z_scores[ci] = z
+            # Only trade assets with half-life in tradeable range
+            if half_life < min_hl or half_life > max_hl:
+                continue
 
-        # Check exits for current holdings (z reverted)
+            # Entry: oversold (deviation < -entry_dev)
+            if deviation < -entry_dev:
+                ou_scores[ci] = (deviation, ou_theta[i, ci])
+
+        # Check exits for current holdings using precomputed deviations
         to_close = []
         for ci in list(holdings.keys()):
-            if ci in z_scores and z_scores[ci] > -z_exit:
+            deviation = ou_dev[i, ci]
+            if np.isnan(deviation):
                 to_close.append(ci)
+                continue
+            if deviation > -exit_dev:
+                to_close.append(ci)
+
         for ci in to_close:
             p = closes_vals[i, ci]
             if not np.isnan(p):
                 cash += holdings[ci] * p
-            del holdings[ci]
+            holdings.pop(ci, None)
             entry_prices.pop(ci, None)
             entry_bars.pop(ci, None)
 
-        # Entry: pick most oversold (most negative z-score)
-        candidates = [(ci, z) for ci, z in z_scores.items()
-                       if z < -z_entry and ci not in holdings]
+        # Entry: pick most oversold by deviation
+        candidates = [(ci, dev) for ci, (dev, theta) in ou_scores.items()
+                       if ci not in holdings]
+        # Sort by deviation (most negative first)
         candidates.sort(key=lambda x: x[1])
         winners = [ci for ci, _ in candidates[:top_n]]
 
@@ -315,31 +284,27 @@ def _beta_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
                 entry_prices.pop(ci, None)
                 entry_bars.pop(ci, None)
 
-        # Volatility-scaled sizing:
-        #   weight_i = target_vol / realized_vol_annual
-        #   target_vol = 15% annualized
+        # Volatility-scaled sizing (target 15% annual vol)
         target_vol = 0.15
         weights = {}
         for ci in winners:
-            ret_slice = returns[i-120:i, ci]
+            ret_slice = returns[max(0, i-120):i, ci]
             sigma_real = np.nanstd(ret_slice)
             if sigma_real <= 0:
                 continue
             sigma_annual = sigma_real * np.sqrt(1440 * 365)
             w = target_vol / sigma_annual
-            w = min(w, 0.5)  # cap at 50% per position
-            weights[ci] = w * dd_scale * hurst_scale
+            w = min(w, 0.5)
+            weights[ci] = w * dd_scale
 
         if not weights:
             continue
 
-        # Normalize weights to sum <= 1
         total_w = sum(weights.values())
         if total_w > 1:
             for ci in weights:
                 weights[ci] /= total_w
 
-        # Buy
         for ci, w in weights.items():
             if ci in holdings:
                 continue
@@ -374,55 +339,55 @@ def _beta_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
     return result
 
 
-class BetaReversionStrategy:
+class OUReversionStrategy:
     """
-    Cross-sectional beta-adjusted mean reversion for crypto.
+    Ornstein-Uhlenbeck mean reversion for crypto.
 
-    Core math:
-        beta_i = Cov(r_i, r_BTC) / Var(r_BTC)
-        residual_i = R_i(lookback) - beta_i * R_BTC(lookback)
-        z_i = (residual - mu) / sigma
+    Estimates OU process parameters (theta, mu, sigma) on log-prices via OLS.
+    Only trades assets whose half-life falls within a tradeable range.
+    Entry when price deviates beyond optimal threshold from equilibrium.
+    Exit when price reverts or stop-loss/max-hold triggers.
 
-    Entry: z < -z_entry AND Hurst(BTC) < threshold (mean-reverting regime)
-    Exit: z > -z_exit OR ATR stop-loss OR max hold
-    Sizing: target_vol / realized_vol, scaled by drawdown and Hurst confidence
+    Math:
+        dS = theta * (mu - S) * dt + sigma * dW
+        half_life = ln(2) / theta
+        deviation = (log_price - mu) / sigma_eq
     """
 
     GRID = {
-        "lookback": [60, 120],
-        "beta_window": [180, 360],
-        "z_window": [90, 180],
-        "z_entry": [1.5, 2.0],
-        "z_exit": [0.0],
-        "hurst_window": [240],
-        "hurst_threshold": [0.50],
+        "ou_window": [120, 240, 480],
+        "min_hl": [5, 10],
+        "max_hl": [60, 120],
+        "entry_dev": [1.5, 2.0, 2.5],
+        "exit_dev": [0.0, 0.5],
         "trend_window": [120, 240],
         "top_n": [1, 2],
-        "stop_atr_mult": [2.0, 3.0],
-        "max_hold": [30, 120],
+        "stop_loss": [0.0, 0.02],
+        "take_profit": [0.0, 0.002, 0.004],
+        "max_hold": [30, 60, 120],
+        "regime_window": [0, 540],
     }
     REBALANCE_OPTIONS = [15, 30]
 
     def __init__(self, api: tradeapi.REST, symbols: list[str],
-                 lookback: int = 90, beta_window: int = 240,
-                 z_window: int = 120, z_entry: float = 1.5,
-                 z_exit: float = 0.0, hurst_window: int = 240,
-                 hurst_threshold: float = 0.50, trend_window: int = 240,
-                 top_n: int = 1, stop_atr_mult: float = 2.5,
-                 max_hold: int = 60):
+                 ou_window: int = 240, min_hl: int = 5, max_hl: int = 120,
+                 entry_dev: float = 2.0, exit_dev: float = 0.0,
+                 trend_window: int = 240, top_n: int = 1,
+                 stop_loss: float = 0.02, take_profit: float = 0.0,
+                 max_hold: int = 60, regime_window: int = 720):
         self.api = api
         self.symbols = symbols
-        self.lookback = lookback
-        self.beta_window = beta_window
-        self.z_window = z_window
-        self.z_entry = z_entry
-        self.z_exit = z_exit
-        self.hurst_window = hurst_window
-        self.hurst_threshold = hurst_threshold
+        self.ou_window = ou_window
+        self.min_hl = min_hl
+        self.max_hl = max_hl
+        self.entry_dev = entry_dev
+        self.exit_dev = exit_dev
         self.trend_window = trend_window
         self.top_n = top_n
-        self.stop_atr_mult = stop_atr_mult
+        self.stop_loss = stop_loss
+        self.take_profit = take_profit
         self.max_hold = max_hold
+        self.regime_window = regime_window
         self._load_params()
 
     def _load_params(self):
@@ -430,9 +395,9 @@ class BetaReversionStrategy:
         if os.path.exists(pf):
             with open(pf) as f:
                 p = json.load(f)
-            for attr in ["lookback", "beta_window", "z_window", "z_entry",
-                         "z_exit", "hurst_window", "hurst_threshold",
-                         "trend_window", "top_n", "stop_atr_mult", "max_hold"]:
+            for attr in ["ou_window", "min_hl", "max_hl", "entry_dev",
+                         "exit_dev", "trend_window", "top_n", "stop_loss",
+                         "take_profit", "max_hold", "regime_window"]:
                 if attr in p:
                     setattr(self, attr, p[attr])
             print(f"Loaded params from {pf}")
@@ -443,17 +408,17 @@ class BetaReversionStrategy:
         if params_suffix:
             pf = pf.replace(".json", f"_{params_suffix}.json")
         params = {
-            "lookback": self.lookback,
-            "beta_window": self.beta_window,
-            "z_window": self.z_window,
-            "z_entry": self.z_entry,
-            "z_exit": self.z_exit,
-            "hurst_window": self.hurst_window,
-            "hurst_threshold": self.hurst_threshold,
+            "ou_window": self.ou_window,
+            "min_hl": self.min_hl,
+            "max_hl": self.max_hl,
+            "entry_dev": self.entry_dev,
+            "exit_dev": self.exit_dev,
             "trend_window": self.trend_window,
             "top_n": self.top_n,
-            "stop_atr_mult": self.stop_atr_mult,
+            "stop_loss": self.stop_loss,
+            "take_profit": self.take_profit,
             "max_hold": self.max_hold,
+            "regime_window": self.regime_window,
             "rebalance_every": rebalance_every,
             "updated_at": datetime.now().isoformat(),
         }
@@ -462,7 +427,7 @@ class BetaReversionStrategy:
         print(f"Saved params to {pf}")
 
     def optimize(self, days: int = 7, fixed_interval: int = None, params_suffix: str = None):
-        print(f"Optimizing beta-reversion over {days} days of data...")
+        print(f"Optimizing OU-reversion over {days} days of data...")
         history = self._fetch_history(days)
         if not history:
             print("No data — keeping current params.")
@@ -471,36 +436,27 @@ class BetaReversionStrategy:
         closes = pd.DataFrame({sym: df["close"] for sym, df in history.items()})
         closes = closes.dropna(how="all").ffill()
 
-        # BTC must be first column
-        btc_syms = [s for s in closes.columns if "BTC" in s]
-        if not btc_syms:
-            print("BTC not in symbols — cannot compute beta.")
-            return
-        btc_col = list(closes.columns).index(btc_syms[0])
-
         grid = self.GRID
 
         import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-        from optimize import grid_search, find_best
+        from optimize import bayesian_search
 
-        keys = list(grid.keys())
-        combos = list(itertools.product(*grid.values()))
         closes_vals = closes.values
         n_cols = closes_vals.shape[1]
 
-        jobs = []
-        jobs_meta = []
-        rebal_options = [fixed_interval] if fixed_interval else self.REBALANCE_OPTIONS
-        for rebal in rebal_options:
-            for vals in combos:
-                kwargs = dict(zip(keys, vals))
-                jobs.append((closes_vals, btc_col, n_cols, kwargs, rebal))
-                jobs_meta.append((kwargs, rebal))
+        # Find BTC column for regime gate
+        btc_syms = [s for s in closes.columns if "BTC" in s]
+        btc_col = list(closes.columns).index(btc_syms[0]) if btc_syms else -1
 
-        print(f"Running {len(jobs)} parameter combinations...")
-        results = grid_search(_beta_reversion_backtest_worker, jobs)
-        best_params, best_rebal, best_sharpe, best_return = find_best(jobs_meta, results)
+        rebal_options = [fixed_interval] if fixed_interval else self.REBALANCE_OPTIONS
+        fixed_args = (closes_vals, btc_col, n_cols)
+
+        best_params, best_rebal, best_sharpe, best_return = bayesian_search(
+            _ou_reversion_backtest_worker, grid, rebal_options, fixed_args,
+            n_trials=300,
+        )
+        keys = list(grid.keys())
 
         if best_params:
             for attr in keys:
@@ -526,13 +482,11 @@ class BetaReversionStrategy:
     # --- Live trading methods ---
 
     def get_momentum_scores(self) -> pd.Series:
-        """Score each symbol by beta-adjusted z-score (for compare command)."""
-        window_needed = max(self.beta_window, self.z_window + self.lookback,
-                            self.hurst_window, self.trend_window) + 30
+        """Score each symbol by OU deviation (for compare command)."""
+        window_needed = max(self.ou_window, self.trend_window) + 30
         end = datetime.now()
         start = end - timedelta(minutes=window_needed)
 
-        # Fetch BTC + all symbols
         all_data = {}
         for symbol in self.symbols:
             try:
@@ -547,68 +501,35 @@ class BetaReversionStrategy:
             except Exception as e:
                 print(f"Error fetching {symbol}: {e}")
 
-        if not all_data or not any("BTC" in s for s in all_data):
+        if not all_data:
             return pd.Series(dtype=float)
 
         closes = pd.DataFrame(all_data).dropna(how="all").ffill()
-        btc_sym = [s for s in closes.columns if "BTC" in s][0]
-
-        # Hurst gate
-        btc_prices = closes[btc_sym].dropna()
-        hurst = _compute_hurst(btc_prices.iloc[-self.hurst_window:])
-        if hurst > self.hurst_threshold:
-            print(f"  Hurst={hurst:.3f} > {self.hurst_threshold} — trending regime, no trades")
-            return pd.Series(dtype=float)
-
-        # Compute returns
-        rets = closes.pct_change().fillna(0)
-        btc_rets = rets[btc_sym]
-
-        # Beta + residual + z-score
-        btc_var = btc_rets.iloc[-self.beta_window:].var()
-        if btc_var <= 0:
-            return pd.Series(dtype=float)
-
-        btc_cum = btc_rets.iloc[-self.lookback:].sum()
         trend_sma = closes.rolling(self.trend_window, min_periods=20).mean()
 
         scores = {}
         for sym in closes.columns:
-            if sym == btc_sym:
-                continue
             # Trend filter
             if closes[sym].iloc[-1] < trend_sma[sym].iloc[-1]:
                 continue
 
-            # Beta
-            sym_rets = rets[sym].iloc[-self.beta_window:]
-            cov = ((sym_rets - sym_rets.mean()) * (btc_rets.iloc[-self.beta_window:] - btc_rets.iloc[-self.beta_window:].mean())).mean()
-            beta = cov / btc_var
-
-            # Residual
-            cum_ret = rets[sym].iloc[-self.lookback:].sum()
-            residual = cum_ret - beta * btc_cum
-
-            # Z-score
-            residuals = []
-            for j in range(self.z_window):
-                idx = -(self.z_window - j)
-                if abs(idx) > len(rets) - self.lookback:
-                    continue
-                r = rets[sym].iloc[idx-self.lookback:idx].sum()
-                b = btc_rets.iloc[idx-self.lookback:idx].sum()
-                residuals.append(r - beta * b)
-
-            if len(residuals) < 20:
+            log_prices = np.log(closes[sym].dropna().iloc[-self.ou_window:])
+            if len(log_prices) < 30:
                 continue
-            mu = np.mean(residuals)
-            sigma = np.std(residuals)
-            if sigma <= 0:
-                continue
-            z = (residual - mu) / sigma
 
-            if z < -self.z_entry:
-                scores[sym] = z  # more negative = more oversold
+            ou = _estimate_ou_params(log_prices)
+            if ou is None:
+                continue
+            theta, mu, sigma_eq, half_life = ou
+
+            if half_life < self.min_hl or half_life > self.max_hl:
+                continue
+            if sigma_eq <= 0:
+                continue
+
+            deviation = (log_prices.iloc[-1] - mu) / sigma_eq
+            if deviation < -self.entry_dev:
+                scores[sym] = deviation  # more negative = more oversold
 
         return pd.Series(scores).sort_values(ascending=True)
 
@@ -636,11 +557,11 @@ class BetaReversionStrategy:
 
     def rebalance(self):
         import time as _time
-        print(f"\n[{datetime.now()}] Running beta-reversion strategy...")
+        print(f"\n[{datetime.now()}] Running OU-reversion strategy...")
 
         scores = self.get_momentum_scores()
         picks = list(scores.head(self.top_n).index)
-        print(f"Beta-adjusted picks: {picks}")
+        print(f"OU-reversion picks: {picks}")
 
         current = {}
         for pos in self.api.list_positions():

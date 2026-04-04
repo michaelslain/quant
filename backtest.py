@@ -117,6 +117,30 @@ def run_backtest(
         pv = _backtest_ema_crossover(closes, volumes, strategy_kwargs, rebalance_every, initial_cash)
     elif cls_name == "BetaReversionStrategy":
         pv = _backtest_beta_reversion(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "OUReversionStrategy":
+        pv = _backtest_ou_reversion(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "KalmanReversionStrategy":
+        pv = _backtest_kalman_reversion(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "AdaptiveMRStrategy":
+        pv = _backtest_adaptive_mr(closes, volumes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "FracDiffMRStrategy":
+        pv = _backtest_fracdiff_mr(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "ZScoreMRStrategy":
+        pv = _backtest_zscore_mr(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "LowVolDipStrategy":
+        pv = _backtest_lowvol_dip(closes, volumes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "EnsembleMRStrategy":
+        pv = _backtest_ensemble_mr(closes, volumes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "DispersionMRStrategy":
+        pv = _backtest_dispersion_mr(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "HurstMRStrategy":
+        pv = _backtest_hurst_mr(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "VelocityMRStrategy":
+        pv = _backtest_velocity_mr(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "DualVelocityMRStrategy":
+        pv = _backtest_dual_velocity_mr(closes, strategy_kwargs, rebalance_every, initial_cash)
+    elif cls_name == "AccelMRStrategy":
+        pv = _backtest_accel_mr(closes, strategy_kwargs, rebalance_every, initial_cash)
     else:
         pv = _backtest_momentum(closes, strategy_kwargs, rebalance_every, initial_cash)
 
@@ -747,6 +771,22 @@ def _backtest_regime_mr(closes, volumes, kwargs, rebalance_every, initial_cash):
                 port_value += qty * p
         values.append(port_value)
 
+        # Drawdown control
+        peak = max(values) if values else initial_cash
+        dd = (port_value - peak) / peak if peak > 0 else 0
+        dd_scale = 1.0
+        if dd < -0.15:
+            for sym, qty in holdings.items():
+                p = closes.loc[ts, sym]
+                if not np.isnan(p):
+                    cash += qty * p
+            holdings = {}
+            entry_prices = {}
+            entry_indices = {}
+            continue
+        elif dd < -0.08:
+            dd_scale = 0.5
+
         # Regime gate
         if not regime_ok.loc[ts]:
             for sym, qty in holdings.items():
@@ -790,7 +830,8 @@ def _backtest_regime_mr(closes, volumes, kwargs, rebalance_every, initial_cash):
         if not winners:
             continue
 
-        per_stock = cash / len(winners)
+        alloc = cash * dd_scale
+        per_stock = alloc / len(winners)
         for sym in winners:
             p = closes.loc[ts, sym]
             if np.isnan(p) or p <= 0:
@@ -1068,6 +1109,249 @@ def _backtest_beta_reversion(closes, kwargs, rebalance_every, initial_cash):
     result = _beta_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
                                               rebalance_every, initial_cash,
                                               return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_ou_reversion(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for OUReversionStrategy using its worker."""
+    from crypto.strategies.ou_reversion import _ou_reversion_backtest_worker
+
+    btc_syms = [s for s in closes.columns if "BTC" in s]
+    btc_col = closes.columns.get_loc(btc_syms[0]) if btc_syms else -1
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _ou_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
+                                            rebalance_every, initial_cash,
+                                            return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_kalman_reversion(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for KalmanReversionStrategy using its worker."""
+    from crypto.strategies.kalman_reversion import _kalman_reversion_backtest_worker
+
+    btc_syms = [s for s in closes.columns if "BTC" in s]
+    if not btc_syms:
+        print("BTC not in symbols — cannot compute Kalman hedge ratios.")
+        return None
+
+    btc_col = closes.columns.get_loc(btc_syms[0])
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _kalman_reversion_backtest_worker(closes_vals, btc_col, n_cols, kwargs,
+                                                rebalance_every, initial_cash,
+                                                return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_adaptive_mr(closes, volumes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for AdaptiveMRStrategy using its worker."""
+    from crypto.strategies.adaptive_mr import _adaptive_mr_backtest_worker
+
+    closes_vals = closes.values
+    volumes_vals = volumes.values if volumes is not None else None
+    vol_avg = volumes.rolling(20, min_periods=10).mean() if volumes is not None else None
+    vol_avg_np = vol_avg.values if vol_avg is not None else None
+    n_cols = closes_vals.shape[1]
+
+    result = _adaptive_mr_backtest_worker(closes_vals, volumes_vals, vol_avg_np,
+                                           n_cols, kwargs, rebalance_every, initial_cash,
+                                           return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_fracdiff_mr(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for FracDiffMRStrategy using its worker."""
+    from crypto.strategies.fracdiff_mr import _fracdiff_mr_backtest_worker
+
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _fracdiff_mr_backtest_worker(closes_vals, n_cols, kwargs,
+                                          rebalance_every, initial_cash,
+                                          return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_zscore_mr(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for ZScoreMRStrategy using its worker."""
+    from crypto.strategies.zscore_mr import _zscore_mr_backtest_worker
+
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _zscore_mr_backtest_worker(closes_vals, n_cols, kwargs,
+                                        rebalance_every, initial_cash,
+                                        return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_lowvol_dip(closes, volumes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for LowVolDipStrategy using its worker."""
+    from crypto.strategies.lowvol_dip import _lowvol_dip_backtest_worker
+
+    closes_vals = closes.values
+    volumes_vals = volumes.values if volumes is not None else None
+    vol_avg = volumes.rolling(20, min_periods=10).mean() if volumes is not None else None
+    vol_avg_np = vol_avg.values if vol_avg is not None else None
+    n_cols = closes_vals.shape[1]
+
+    result = _lowvol_dip_backtest_worker(closes_vals, volumes_vals, vol_avg_np,
+                                          n_cols, kwargs, rebalance_every, initial_cash,
+                                          return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_ensemble_mr(closes, volumes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for EnsembleMRStrategy using its worker."""
+    from crypto.strategies.ensemble_mr import _ensemble_mr_backtest_worker
+
+    closes_vals = closes.values
+    volumes_vals = volumes.values if volumes is not None else None
+    vol_avg = volumes.rolling(20, min_periods=10).mean() if volumes is not None else None
+    vol_avg_np = vol_avg.values if vol_avg is not None else None
+
+    # Find BTC column
+    cols = closes.columns.tolist()
+    btc_col = 0
+    for idx, c in enumerate(cols):
+        if "BTC" in c:
+            btc_col = idx
+            break
+
+    n_cols = closes_vals.shape[1]
+
+    result = _ensemble_mr_backtest_worker(closes_vals, volumes_vals, vol_avg_np,
+                                           btc_col, n_cols, kwargs,
+                                           rebalance_every, initial_cash,
+                                           return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_dispersion_mr(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for DispersionMRStrategy using its worker."""
+    from crypto.strategies.dispersion_mr import _dispersion_mr_backtest_worker
+
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _dispersion_mr_backtest_worker(closes_vals, n_cols, kwargs,
+                                             rebalance_every, initial_cash,
+                                             return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_hurst_mr(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for HurstMRStrategy using its worker."""
+    from crypto.strategies.hurst_mr import _hurst_mr_backtest_worker
+
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _hurst_mr_backtest_worker(closes_vals, n_cols, kwargs,
+                                        rebalance_every, initial_cash,
+                                        return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_dual_velocity_mr(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for DualVelocityMRStrategy using its worker."""
+    from crypto.strategies.dual_velocity_mr import _dual_velocity_mr_backtest_worker
+
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _dual_velocity_mr_backtest_worker(closes_vals, n_cols, kwargs,
+                                                rebalance_every, initial_cash,
+                                                return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_velocity_mr(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for VelocityMRStrategy using its worker."""
+    from crypto.strategies.velocity_mr import _velocity_mr_backtest_worker
+
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _velocity_mr_backtest_worker(closes_vals, n_cols, kwargs,
+                                           rebalance_every, initial_cash,
+                                           return_equity=True)
+    if result is None:
+        return None
+    if isinstance(result, dict) and "equity_curve" in result:
+        return np.array(result["equity_curve"])
+    final = initial_cash * (1 + result["total_return"])
+    return np.array([initial_cash, final])
+
+
+def _backtest_accel_mr(closes, kwargs, rebalance_every, initial_cash):
+    """Backtest wrapper for AccelMRStrategy using its worker."""
+    from crypto.strategies.accel_mr import _accel_mr_backtest_worker
+
+    closes_vals = closes.values
+    n_cols = closes_vals.shape[1]
+
+    result = _accel_mr_backtest_worker(closes_vals, n_cols, kwargs,
+                                       rebalance_every, initial_cash,
+                                       return_equity=True)
     if result is None:
         return None
     if isinstance(result, dict) and "equity_curve" in result:

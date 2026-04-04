@@ -20,6 +20,18 @@ from crypto.strategies.bandit import BanditStrategy
 from crypto.strategies.monte_carlo import MonteCarloStrategy
 from crypto.strategies.regime_mr import RegimeMeanReversionStrategy
 from crypto.strategies.beta_reversion import BetaReversionStrategy
+from crypto.strategies.ou_reversion import OUReversionStrategy
+from crypto.strategies.kalman_reversion import KalmanReversionStrategy
+from crypto.strategies.adaptive_mr import AdaptiveMRStrategy
+from crypto.strategies.fracdiff_mr import FracDiffMRStrategy
+from crypto.strategies.zscore_mr import ZScoreMRStrategy
+from crypto.strategies.lowvol_dip import LowVolDipStrategy
+from crypto.strategies.ensemble_mr import EnsembleMRStrategy
+from crypto.strategies.dispersion_mr import DispersionMRStrategy
+from crypto.strategies.hurst_mr import HurstMRStrategy
+from crypto.strategies.velocity_mr import VelocityMRStrategy
+from crypto.strategies.dual_velocity_mr import DualVelocityMRStrategy
+from crypto.strategies.accel_mr import AccelMRStrategy
 from backtest import run_backtest
 from livetest import cmd_livetest
 
@@ -95,6 +107,54 @@ CRYPTO_STRATEGIES = {
     "beta_reversion": {
         "class": BetaReversionStrategy,
         "kwargs": {"lookback": 90, "beta_window": 240, "z_window": 120, "z_entry": 1.5, "z_exit": 0.0, "hurst_window": 240, "hurst_threshold": 0.50, "trend_window": 240, "top_n": 1, "stop_atr_mult": 2.5, "max_hold": 60},
+    },
+    "ou_reversion": {
+        "class": OUReversionStrategy,
+        "kwargs": {"ou_window": 240, "min_hl": 5, "max_hl": 120, "entry_dev": 2.0, "exit_dev": 0.0, "trend_window": 240, "top_n": 1, "stop_loss": 0.02, "take_profit": 0.0, "max_hold": 60, "regime_window": 720},
+    },
+    "kalman_reversion": {
+        "class": KalmanReversionStrategy,
+        "kwargs": {"delta": 1e-4, "R": 1e-3, "z_entry": 2.0, "z_exit": 0.0, "z_window": 120, "warmup": 500, "trend_window": 240, "top_n": 1, "stop_loss": 0.02, "take_profit": 0.0, "max_hold": 120},
+    },
+    "adaptive_mr": {
+        "class": AdaptiveMRStrategy,
+        "kwargs": {"vwap_window": 25, "base_min_dip": 0.001, "base_max_dip": 0.012, "atr_window": 120, "top_n": 1, "trend_window": 120, "take_profit": 0.003, "stop_loss": 0.015, "max_hold": 30, "regime_window": 540},
+    },
+    "fracdiff_mr": {
+        "class": FracDiffMRStrategy,
+        "kwargs": {"frac_d": 0.4, "z_entry": 2.0, "z_exit": 0.5, "z_window": 240, "trend_window": 240, "top_n": 1, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
+    },
+    "zscore_mr": {
+        "class": ZScoreMRStrategy,
+        "kwargs": {"lookback": 60, "z_entry": 1.5, "z_exit": 0.5, "trend_window": 240, "top_n": 1, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
+    },
+    "lowvol_dip": {
+        "class": LowVolDipStrategy,
+        "kwargs": {"vwap_window": 25, "min_dip": 0.001, "max_dip": 0.012, "vol_ceil": 0.8, "trend_window": 120, "top_n": 1, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
+    },
+    "ensemble_mr": {
+        "class": EnsembleMRStrategy,
+        "kwargs": {"vwap_window": 25, "min_dip": 0.001, "max_dip": 0.012, "delta": 1e-4, "R": 1e-3, "kalman_entry": 1.0, "z_window": 120, "trend_window": 120, "top_n": 1, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
+    },
+    "dispersion_mr": {
+        "class": DispersionMRStrategy,
+        "kwargs": {"vwap_window": 25, "min_dip": 0.001, "max_dip": 0.012, "disp_window": 60, "disp_lookback": 480, "disp_thresh": 50, "top_n": 1, "trend_window": 120, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
+    },
+    "hurst_mr": {
+        "class": HurstMRStrategy,
+        "kwargs": {"vwap_window": 25, "min_dip": 0.001, "max_dip": 0.012, "hurst_window": 240, "h_max": 0.48, "top_n": 1, "trend_window": 120, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
+    },
+    "velocity_mr": {
+        "class": VelocityMRStrategy,
+        "kwargs": {"vel_window": 15, "lookback": 240, "entry_frac": 0.6, "top_n": 1, "trend_window": 120, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
+    },
+    "dual_velocity_mr": {
+        "class": DualVelocityMRStrategy,
+        "kwargs": {"fast_window": 10, "slow_window": 120, "lookback": 240, "entry_frac": 0.5, "slow_floor": 0.0, "top_n": 1, "trend_window": 120, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
+    },
+    "accel_mr": {
+        "class": AccelMRStrategy,
+        "kwargs": {"vel_window": 15, "accel_window": 10, "lookback": 120, "vel_frac": 0.5, "accel_thresh": 0.001, "top_n": 1, "trend_window": 240, "take_profit": 0.002, "stop_loss": 0.0, "max_hold": 0, "regime_window": 0},
     },
 }
 
@@ -281,6 +341,7 @@ def cmd_run(api, market, strategy_name, interval_min=None):
 
 
 def cmd_optimize(api, market, strategy_name, days=7, interval=None):
+    import time as _time
     strategies = get_strategies(market)
     symbols = get_symbols(market)
 
@@ -316,7 +377,10 @@ def cmd_optimize(api, market, strategy_name, days=7, interval=None):
         suffix = f"{interval}min" if interval else None
         if interval:
             print(f"Optimizing '{name}' at fixed {interval}min interval (saving to {name}_{suffix}.json)")
+        t0 = _time.time()
         strategy.optimize(days=days, fixed_interval=interval, params_suffix=suffix)
+        elapsed = _time.time() - t0
+        print(f"  Optimization time: {elapsed:.1f}s")
 
         # Read the just-saved params to store results in cache
         params_file = f"{market}/params/{name}.json"
@@ -334,6 +398,7 @@ def cmd_optimize(api, market, strategy_name, days=7, interval=None):
 
 
 def cmd_backtest(api, market, strategy_name=None, days=7, interval=None, end_days_ago=1):
+    import time as _time
     strategies = get_strategies(market)
     symbols = get_symbols(market)
     names = [strategy_name] if strategy_name else list(strategies.keys())
@@ -392,6 +457,7 @@ def cmd_backtest(api, market, strategy_name=None, days=7, interval=None, end_day
             continue
 
         print(f"\n--- Backtesting: {name} ({market}) [every {rebal}min] ---")
+        t0 = _time.time()
         result = run_backtest(
             strategy_cls=cfg["class"],
             strategy_kwargs=kwargs,
@@ -401,6 +467,8 @@ def cmd_backtest(api, market, strategy_name=None, days=7, interval=None, end_day
             rebalance_every=rebal,
             end_days_ago=end_days_ago,
         )
+        elapsed = _time.time() - t0
+        print(f"  Backtest time: {elapsed:.1f}s")
         if result:
             results[name] = result
             _save_cached_result(cache_key, result, "backtest")
@@ -433,83 +501,75 @@ def cmd_refresh(api):
     best = {}
 
     for market in ("crypto", "stock"):
+        # Step 1: Optimize (uses cache via cmd_optimize)
+        cmd_optimize(api, market, strategy_name=None, days=opt_days)
+
+        # Step 2: Backtest out-of-sample (uses cache via cmd_backtest)
+        cmd_backtest(api, market, strategy_name=None, days=bt_days, end_days_ago=end_days_ago)
+
+        # Collect results from cache to pick best
         strategies = get_strategies(market)
-        symbols = get_symbols(market)
-
-        # Step 1: Optimize all strategies
-        print(f"\n{'='*60}")
-        print(f"  OPTIMIZING {market.upper()} ({opt_days} days)")
-        print(f"{'='*60}")
-        for name, cfg in strategies.items():
-            strategy = cfg["class"](api=api, symbols=symbols, **cfg["kwargs"])
-            if hasattr(strategy, "optimize"):
-                print(f"\n--- {name} ---")
-                strategy.optimize(days=opt_days)
-            else:
-                print(f"\n--- {name} --- (no optimize method, skipping)")
-
-        # Step 2: Backtest all strategies on out-of-sample data
-        print(f"\n{'='*60}")
-        print(f"  BACKTESTING {market.upper()} ({bt_days} days, ending {end_days_ago} days ago)")
-        print(f"{'='*60}")
-
         results = {}
         for name, cfg in strategies.items():
             kwargs = dict(cfg["kwargs"])
             rebalance_every = 30
-
             params_file = f"{market}/params/{name}.json"
             try:
                 with open(params_file) as f:
                     params = json.load(f)
                 rebalance_every = params.pop("rebalance_every", 30)
                 params.pop("updated_at", None)
-                kwargs.update(params)
             except FileNotFoundError:
                 pass
+            rebal = rebalance_every
+            cache_key = _result_cache_key(name, market, bt_days, rebal, cfg["class"])
+            cached = _get_cached_result(cache_key, "backtest")
+            if cached:
+                results[name] = cached
 
-            print(f"\n--- {name} [every {rebalance_every}min] ---")
-            result = run_backtest(
-                strategy_cls=cfg["class"],
-                strategy_kwargs=kwargs,
-                api=api,
-                symbols=symbols,
-                days=bt_days,
-                rebalance_every=rebalance_every,
-                end_days_ago=end_days_ago,
-            )
-            if result:
-                results[name] = result
-
-        # Pick best by return
+        # Pick best by composite score: Sharpe * sqrt(1 + return) * (1 - |max_dd|)
+        # This balances risk-adjusted performance, absolute return, and drawdown
         best_name = None
-        best_ret = -999
+        best_score = -999
+        best_ret = 0
+        best_sharpe = 0
+        best_dd = 0
+        print(f"\n  {market.upper()} strategy rankings:")
+        ranked = []
         for name, r in results.items():
-            if r["total_return"] > best_ret:
-                best_ret = r["total_return"]
+            ret = r.get("total_return", 0)
+            sharpe = r.get("sharpe", 0)
+            dd = r.get("max_drawdown", r.get("max_dd", 0))
+            # Composite: Sharpe is primary, penalize by drawdown, bonus for return
+            if ret < 0:
+                score = ret  # negative return = negative score
+            else:
+                score = sharpe * (1 + ret) ** 0.5 * (1 + dd)  # dd is negative
+            ranked.append((name, ret, sharpe, dd, score))
+        ranked.sort(key=lambda x: x[4], reverse=True)
+        for name, ret, sharpe, dd, score in ranked:
+            marker = ""
+            if score > best_score:
+                best_score = score
                 best_name = name
+                best_ret = ret
+                best_sharpe = sharpe
+                best_dd = dd
+            print(f"    {name:20s}  ret={ret:+7.2%}  sharpe={sharpe:5.2f}  dd={dd:+7.2%}  score={score:6.2f}")
 
         if best_name and best_ret < 0:
             print(f"\n  All {market} strategies negative — no pick.")
             best_name = None
             best_ret = 0
+            best_sharpe = 0
+            best_dd = 0
 
         best[market] = {
             "strategy": best_name,
             "backtest_return": best_ret,
+            "sharpe": best_sharpe,
+            "max_dd": best_dd,
         }
-
-        # Summary
-        if results:
-            print(f"\n{'='*60}")
-            print(f"  {market.upper()} RESULTS")
-            print(f"{'='*60}")
-            print(f"  {'Strategy':<20} {'Return':>10} {'Sharpe':>10} {'Max DD':>10}")
-            print(f"  {'-'*50}")
-            for name in sorted(results, key=lambda n: results[n]["total_return"], reverse=True):
-                r = results[name]
-                marker = " <--" if name == best_name else ""
-                print(f"  {name:<20} {r['total_return']:>9.2%} {r['sharpe']:>10.2f} {r['max_drawdown']:>9.2%}{marker}")
 
     # Write best_strategy.json
     output = {
@@ -524,8 +584,10 @@ def cmd_refresh(api):
     print(f"\n{'='*60}")
     print(f"  SAVED: best_strategy.json")
     print(f"{'='*60}")
-    print(f"  Crypto: {best['crypto']['strategy'] or 'none'} ({best['crypto']['backtest_return']:+.2%})")
-    print(f"  Stock:  {best['stock']['strategy'] or 'none'} ({best['stock']['backtest_return']:+.2%})")
+    for m in ("crypto", "stock"):
+        b = best[m]
+        s = b['strategy'] or 'none'
+        print(f"  {m.title():7s}: {s:20s}  ret={b['backtest_return']:+.2%}  sharpe={b['sharpe']:.2f}  dd={b['max_dd']:+.2%}")
     print(f"\nCommit & push to deploy to Pi.")
 
 

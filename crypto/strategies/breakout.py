@@ -1,4 +1,3 @@
-import itertools
 import json
 import os
 import numpy as np
@@ -26,22 +25,69 @@ def _breakout_backtest_worker(closes_vals, highs_vals, volumes_vals, cols,
     atr_period = kwargs["atr_period"]
     trend_window = kwargs["trend_window"]
     top_n = kwargs["top_n"]
+    take_profit = kwargs.get("take_profit", 0.0)
+    stop_loss = kwargs.get("stop_loss", 0.0)
+    max_hold = kwargs.get("max_hold", 0)
+    regime_window = kwargs.get("regime_window", 0)
 
     highest_high = channel_np[channel_period]
     vol_avg = vol_avg_np.get(20)
     atr = atr_np[atr_period]
     trend_sma = trend_np[trend_window]
 
-    warmup = max(channel_period, atr_period, trend_window) + 10
+    warmup = max(channel_period, atr_period, trend_window, regime_window) + 10
     n_rows = closes_vals.shape[0]
     n_cols = closes_vals.shape[1]
     rebal_indices = list(range(warmup, n_rows, rebalance_every))
 
+    # BTC regime (column 0) if enabled
+    if regime_window > 0:
+        btc = closes_vals[:, 0]
+        btc_cs = np.nancumsum(btc)
+        regime_ok = np.zeros(n_rows, dtype=bool)
+        for ii in range(regime_window, n_rows):
+            s = ii - regime_window
+            btc_sma = (btc_cs[ii] - btc_cs[s]) / regime_window
+            regime_ok[ii] = btc[ii] > btc_sma
+    else:
+        regime_ok = np.ones(n_rows, dtype=bool)
+
     cash = initial_cash
     holdings = {}  # col_idx -> qty
+    entry_prices = {}
+    entry_bars = {}
     values = []
 
-    for i in rebal_indices:
+    for ri, i in enumerate(rebal_indices):
+        # Between rebalances: per-bar take-profit, stop-loss, max-hold
+        if holdings:
+            prev_i = rebal_indices[ri - 1] if ri > 0 else warmup
+            for bar in range(prev_i + 1, i):
+                to_close = []
+                for ci in list(holdings.keys()):
+                    p = closes_vals[bar, ci]
+                    if np.isnan(p):
+                        continue
+                    if stop_loss > 0 and ci in entry_prices:
+                        if p <= entry_prices[ci] * (1 - stop_loss):
+                            to_close.append(ci)
+                            continue
+                    if take_profit > 0 and ci in entry_prices:
+                        if p >= entry_prices[ci] * (1 + take_profit):
+                            to_close.append(ci)
+                            continue
+                    if max_hold > 0 and ci in entry_bars:
+                        if bar - entry_bars[ci] >= max_hold:
+                            to_close.append(ci)
+                            continue
+                for ci in to_close:
+                    p = closes_vals[bar, ci]
+                    if not np.isnan(p):
+                        cash += holdings[ci] * p
+                    del holdings[ci]
+                    entry_prices.pop(ci, None)
+                    entry_bars.pop(ci, None)
+
         # Calculate portfolio value
         port_value = cash
         for ci, qty in holdings.items():
@@ -49,6 +95,33 @@ def _breakout_backtest_worker(closes_vals, highs_vals, volumes_vals, cols,
             if not np.isnan(p):
                 port_value += qty * p
         values.append(port_value)
+
+        # Drawdown control
+        peak = max(values) if values else initial_cash
+        dd = (port_value - peak) / peak if peak > 0 else 0
+        dd_scale = 1.0
+        if dd < -0.15:
+            for ci, qty in holdings.items():
+                p = closes_vals[i, ci]
+                if not np.isnan(p):
+                    cash += qty * p
+            holdings = {}
+            entry_prices = {}
+            entry_bars = {}
+            continue
+        elif dd < -0.08:
+            dd_scale = 0.5
+
+        # Regime gate
+        if not regime_ok[i]:
+            for ci, qty in holdings.items():
+                p = closes_vals[i, ci]
+                if not np.isnan(p):
+                    cash += qty * p
+            holdings = {}
+            entry_prices = {}
+            entry_bars = {}
+            continue
 
         # Score breakout candidates
         scores = {}
@@ -92,6 +165,8 @@ def _breakout_backtest_worker(closes_vals, highs_vals, volumes_vals, cols,
             if not np.isnan(p):
                 cash += qty * p
         holdings = {}
+        entry_prices = {}
+        entry_bars = {}
 
         # If no breakout detected, stay in cash
         if not winners:
@@ -110,14 +185,17 @@ def _breakout_backtest_worker(closes_vals, highs_vals, volumes_vals, cols,
         if total_inv_atr <= 0:
             continue
 
+        alloc_cash = cash * dd_scale
         for ci in winners:
             p = closes_vals[i, ci]
             if np.isnan(p) or p <= 0:
                 continue
             weight = winner_atrs.get(ci, 0) / total_inv_atr
-            alloc = cash * weight
+            alloc = alloc_cash * weight
             qty = alloc / p
             holdings[ci] = qty
+            entry_prices[ci] = p
+            entry_bars[ci] = i
 
         cash_used = 0.0
         for ci, qty in holdings.items():
@@ -163,14 +241,20 @@ class CryptoBreakoutStrategy:
         "volume_mult": [1.0, 1.2, 1.5],
         "atr_period": [14, 20, 30],
         "trend_window": [60, 120, 240],
-        "top_n": [1, 2, 3],
+        "top_n": [1, 2],
+        "take_profit": [0.0, 0.002, 0.004],
+        "stop_loss": [0.0, 0.015],
+        "max_hold": [0, 30, 60],
+        "regime_window": [0, 540],
     }
-    REBALANCE_OPTIONS = [5, 15, 30]
+    REBALANCE_OPTIONS = [15, 30]
 
     def __init__(self, api: tradeapi.REST, symbols: list[str],
                  channel_period: int = 40, volume_mult: float = 1.2,
                  atr_period: int = 14, trend_window: int = 120,
-                 top_n: int = 2):
+                 top_n: int = 2, take_profit: float = 0.0,
+                 stop_loss: float = 0.0, max_hold: int = 0,
+                 regime_window: int = 0):
         self.api = api
         self.symbols = symbols
         self.channel_period = channel_period
@@ -178,6 +262,10 @@ class CryptoBreakoutStrategy:
         self.atr_period = atr_period
         self.trend_window = trend_window
         self.top_n = top_n
+        self.take_profit = take_profit
+        self.stop_loss = stop_loss
+        self.max_hold = max_hold
+        self.regime_window = regime_window
         self._load_params()
 
     def _load_params(self):
@@ -190,6 +278,10 @@ class CryptoBreakoutStrategy:
             self.atr_period = p.get("atr_period", self.atr_period)
             self.trend_window = p.get("trend_window", self.trend_window)
             self.top_n = p.get("top_n", self.top_n)
+            self.take_profit = p.get("take_profit", self.take_profit)
+            self.stop_loss = p.get("stop_loss", self.stop_loss)
+            self.max_hold = p.get("max_hold", self.max_hold)
+            self.regime_window = p.get("regime_window", self.regime_window)
             print(f"Loaded params from {pf}")
 
     def _save_params(self, rebalance_every=5, params_suffix=None):
@@ -203,6 +295,10 @@ class CryptoBreakoutStrategy:
             "atr_period": self.atr_period,
             "trend_window": self.trend_window,
             "top_n": self.top_n,
+            "take_profit": self.take_profit,
+            "stop_loss": self.stop_loss,
+            "max_hold": self.max_hold,
+            "regime_window": self.regime_window,
             "rebalance_every": rebalance_every,
             "updated_at": datetime.now().isoformat(),
         }
@@ -266,10 +362,7 @@ class CryptoBreakoutStrategy:
 
         import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-        from optimize import grid_search, find_best
-
-        keys = list(self.GRID.keys())
-        combos = list(itertools.product(*self.GRID.values()))
+        from optimize import bayesian_search
 
         # Convert caches to numpy for pickling
         closes_vals = closes.values
@@ -280,20 +373,21 @@ class CryptoBreakoutStrategy:
         atr_np = {k: v.values for k, v in atr_cache.items()}
         trend_np = {k: v.values for k, v in trend_cache.items()}
 
-        jobs = []
-        jobs_meta = []
+        fixed_args = (closes_vals, highs_vals, volumes_vals,
+                      closes.columns.tolist(),
+                      channel_np, vol_avg_np, atr_np, trend_np)
         rebal_options = [fixed_interval] if fixed_interval else self.REBALANCE_OPTIONS
-        for rebal in rebal_options:
-            for vals in combos:
-                kwargs = dict(zip(keys, vals))
-                jobs.append((closes_vals, highs_vals, volumes_vals,
-                             closes.columns.tolist(),
-                             channel_np, vol_avg_np, atr_np, trend_np,
-                             kwargs, rebal))
-                jobs_meta.append((kwargs, rebal))
 
-        results = grid_search(_breakout_backtest_worker, jobs)
-        best_params, best_rebal, best_sharpe, best_return = find_best(jobs_meta, results)
+        def _breakout_worker_dict(closes_vals, highs_vals, volumes_vals, cols,
+                                  channel_np, vol_avg_np, atr_np, trend_np,
+                                  kwargs, rebalance_every):
+            return _breakout_backtest_worker(closes_vals, highs_vals, volumes_vals, cols,
+                                             channel_np, vol_avg_np, atr_np, trend_np,
+                                             kwargs, rebalance_every)
+
+        best_params, best_rebal, best_sharpe, best_return = bayesian_search(
+            _breakout_worker_dict, self.GRID, rebal_options, fixed_args,
+            n_trials=300)
 
         if best_params:
             self.channel_period = best_params["channel_period"]
@@ -301,11 +395,17 @@ class CryptoBreakoutStrategy:
             self.atr_period = best_params["atr_period"]
             self.trend_window = best_params["trend_window"]
             self.top_n = best_params["top_n"]
+            self.take_profit = best_params.get("take_profit", 0.0)
+            self.stop_loss = best_params.get("stop_loss", 0.0)
+            self.max_hold = best_params.get("max_hold", 0)
+            self.regime_window = best_params.get("regime_window", 0)
             label = "Optimal" if best_return > 0 else "Best (still negative)"
             print(f"\n{label} params found:")
             print(f"  channel_period={self.channel_period}, volume_mult={self.volume_mult}")
             print(f"  atr_period={self.atr_period}, trend_window={self.trend_window}")
-            print(f"  top_n={self.top_n}")
+            print(f"  top_n={self.top_n}, take_profit={self.take_profit}")
+            print(f"  stop_loss={self.stop_loss}, max_hold={self.max_hold}")
+            print(f"  regime_window={self.regime_window}")
             print(f"  rebalance_every={best_rebal}min")
             print(f"  Backtest return: {best_return:.2%} | Sharpe: {best_sharpe:.2f}")
             self._save_params(best_rebal, params_suffix=params_suffix)

@@ -9,6 +9,7 @@
   "max_hold": 25,
   "regime_window": 540,
   "volume_mult": 0.0,
+  "mom_window": 0,
   "rebalance_every": 30,
   "updated_at": "2026-04-03T03:52:43.310581"
 }

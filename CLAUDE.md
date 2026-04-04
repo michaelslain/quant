@@ -6,11 +6,11 @@ Algorithmic paper trading system using Alpaca API. Supports stock and crypto mar
 
 - `main.py` -- CLI entry point. Commands: compare, trade, run, backtest, optimize, refresh, livetest
 - `backtest.py` -- vectorized backtester with per-day parquet caching in `.cache/`
-- `optimize.py` -- multiprocessing grid search helper (`grid_search`, `find_best`)
+- `optimize.py` -- multiprocessing grid search helper (`grid_search`, `find_best`) + Bayesian search via Optuna (`bayesian_search`)
 - `quant_runner.py` -- long-running trader that auto-picks best strategy, writes status to ~/.claude/daemon/quant_status.json
 - `run_live.py` -- lightweight Pi live trader, reads best_strategy.json and trades
 - `livetest.py` -- simulates combined stock+crypto live trading schedule on historical data
-- `crypto/strategies/` -- crypto-specific strategies (9 strategies)
+- `crypto/strategies/` -- crypto-specific strategies (23 strategies)
 - `stock/strategies/` -- stock-specific strategies (5 strategies)
 - `<market>/params/` -- optimized parameters per strategy (JSON)
 - `<market>/params/<strategy>_<interval>min.json` -- interval-specific params
@@ -86,3 +86,16 @@ Each strategy file follows the same pattern:
 - Both strategies support per-bar stop-loss checks between rebalances
 - `backtest.py` mirrors these features (take-profit for mean reversion, bounce_window/use_bb/adaptive for RSI)
 - Crypto beta reversion uses **Hurst exponent regime gate**: only trades when BTC Hurst < threshold (mean-reverting regime), with beta-adjusted z-score entry/exit and volatility-scaled sizing
+- Crypto OU reversion estimates **Ornstein-Uhlenbeck process parameters** (theta, mu, sigma) on log-prices via OLS, with half-life calibration for tradeable-asset filtering and deviation-based entry/exit
+- Crypto Kalman reversion uses **Kalman filter dynamic hedge ratios** per altcoin vs BTC on log-prices, with rolling z-score of raw spread and per-bar take-profit
+- Crypto adaptive MR uses **ATR-adaptive dip thresholds**: scales min/max dip by per-coin ATR ratio vs cross-sectional median, with BTC regime gate and drawdown control
+- Crypto frac-diff MR uses **fractional differentiation** (d~0.3-0.5) of log-prices to achieve stationarity while preserving long-memory, with z-score entry/exit
+- Crypto z-score MR uses **cross-sectional z-score** of recent returns across the crypto universe — buys coins most oversold relative to peers
+- Crypto low-vol dip buys VWAP dips occurring on **below-average volume** (weak selling pressure = faster reversion)
+- Crypto regime_mr supports **momentum confirmation** (mom_window): only buys dips in coins with positive short-term return
+- Crypto dispersion MR uses **cross-sectional return dispersion filter**: only buys VWAP dips when dispersion is low (noise-driven moves revert, information-driven ones don't)
+- Crypto Hurst MR uses **per-coin Hurst exponent** (R/S analysis) to select coins with strongest mean-reversion tendency, with Hurst-weighted position sizing
+- Crypto velocity MR uses **price velocity vs historical speed limit** (inspired by Relativistic Black-Scholes): buys when log-return velocity approaches the observed maximum negative speed, with VWAP-based take-profit
+- Most strategies have **drawdown control**: 50% position reduction at -8% DD, full liquidation at -15% DD
+- Per-bar **take-profit** (exit when price rises X% from entry) is the single most impactful feature — take_profit=0.002 is the universal sweet spot
+- `refresh` command picks best strategy using **composite score**: `Sharpe * sqrt(1 + return) * (1 - |max_dd|)` — balances risk-adjusted performance, absolute return, and drawdown

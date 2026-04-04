@@ -1,0 +1,14 @@
+{
+  "frac_d": 0.3,
+  "z_entry": 2.5,
+  "z_exit": 0.0,
+  "z_window": 120,
+  "trend_window": 480,
+  "top_n": 1,
+  "take_profit": 0.0,
+  "stop_loss": 0.0,
+  "max_hold": 0,
+  "regime_window": 720,
+  "rebalance_every": 15,
+  "updated_at": "2026-04-03T18:08:59.391325"
+}

@@ -19,7 +19,7 @@ def _params_file():
 
 def _bayesian_backtest_worker(closes_vals, volumes_vals, cols, sma_np, rsi_np,
                                vol_avg_np, trend_np, kwargs, rebalance_every,
-                               initial_cash=100_000.0):
+                               initial_cash=100_000.0, return_equity=False):
     """Standalone Bayesian backtest function for multiprocessing."""
     sma_period = kwargs["sma_period"]
     rsi_period = kwargs["rsi_period"]
@@ -29,28 +29,102 @@ def _bayesian_backtest_worker(closes_vals, volumes_vals, cols, sma_np, rsi_np,
     threshold = kwargs["threshold"]
     trend_window = kwargs["trend_window"]
     top_n = kwargs["top_n"]
+    take_profit = kwargs.get("take_profit", 0.0)
+    stop_loss = kwargs.get("stop_loss", 0.0)
+    max_hold = kwargs.get("max_hold", 0)
+    regime_window = kwargs.get("regime_window", 0)
 
     sma = sma_np[sma_period]
     rsi = rsi_np[rsi_period]
     vol_avg = vol_avg_np.get(20)
     trend_sma = trend_np[trend_window]
 
-    warmup = max(sma_period, rsi_period, trend_window) + 10
+    warmup = max(sma_period, rsi_period, trend_window, regime_window) + 10
     n_rows = closes_vals.shape[0]
     n_cols = closes_vals.shape[1]
     rebal_indices = list(range(warmup, n_rows, rebalance_every))
 
+    # BTC regime (column 0) if enabled
+    if regime_window > 0:
+        btc = closes_vals[:, 0]
+        btc_cs = np.nancumsum(btc)
+        regime_ok = np.zeros(n_rows, dtype=bool)
+        for ii in range(regime_window, n_rows):
+            s = ii - regime_window
+            btc_sma = (btc_cs[ii] - btc_cs[s]) / regime_window
+            regime_ok[ii] = btc[ii] > btc_sma
+    else:
+        regime_ok = np.ones(n_rows, dtype=bool)
+
     cash = initial_cash
     holdings = {}  # col_idx -> qty
+    entry_prices = {}
+    entry_bars = {}
     values = []
 
-    for i in rebal_indices:
+    for ri, i in enumerate(rebal_indices):
+        # Between rebalances: per-bar take-profit, stop-loss, max-hold
+        if holdings:
+            prev_i = rebal_indices[ri - 1] if ri > 0 else warmup
+            for bar in range(prev_i + 1, i):
+                to_close = []
+                for ci in list(holdings.keys()):
+                    p = closes_vals[bar, ci]
+                    if np.isnan(p):
+                        continue
+                    if stop_loss > 0 and ci in entry_prices:
+                        if p <= entry_prices[ci] * (1 - stop_loss):
+                            to_close.append(ci)
+                            continue
+                    if take_profit > 0 and ci in entry_prices:
+                        if p >= entry_prices[ci] * (1 + take_profit):
+                            to_close.append(ci)
+                            continue
+                    if max_hold > 0 and ci in entry_bars:
+                        if bar - entry_bars[ci] >= max_hold:
+                            to_close.append(ci)
+                            continue
+                for ci in to_close:
+                    p = closes_vals[bar, ci]
+                    if not np.isnan(p):
+                        cash += holdings[ci] * p
+                    del holdings[ci]
+                    entry_prices.pop(ci, None)
+                    entry_bars.pop(ci, None)
+
         port_value = cash
         for ci, qty in holdings.items():
             p = closes_vals[i, ci]
             if not np.isnan(p):
                 port_value += qty * p
         values.append(port_value)
+
+        # Drawdown control
+        peak = max(values) if values else initial_cash
+        dd = (port_value - peak) / peak if peak > 0 else 0
+        dd_scale = 1.0
+        if dd < -0.15:
+            for ci, qty in holdings.items():
+                p = closes_vals[i, ci]
+                if not np.isnan(p):
+                    cash += qty * p
+            holdings = {}
+            entry_prices = {}
+            entry_bars = {}
+            continue
+        elif dd < -0.08:
+            dd_scale = 0.5
+
+        # Regime gate
+        if not regime_ok[i]:
+            for ci, qty in holdings.items():
+                p = closes_vals[i, ci]
+                if not np.isnan(p):
+                    cash += qty * p
+            holdings = {}
+            entry_prices = {}
+            entry_bars = {}
+            continue
 
         posteriors = {}
         for ci in range(n_cols):
@@ -102,18 +176,23 @@ def _bayesian_backtest_worker(closes_vals, volumes_vals, cols, sma_np, rsi_np,
             if not np.isnan(p):
                 cash += qty * p
         holdings = {}
+        entry_prices = {}
+        entry_bars = {}
 
         # If no winners, stay in cash
         if not winners:
             continue
 
-        per_stock = cash / len(winners)
+        alloc = cash * dd_scale
+        per_stock = alloc / len(winners)
         for ci in winners:
             p = closes_vals[i, ci]
             if np.isnan(p) or p <= 0:
                 continue
             qty = per_stock / p
             holdings[ci] = qty
+            entry_prices[ci] = p
+            entry_bars[ci] = i
             cash -= qty * p
 
     # Final portfolio value
@@ -138,7 +217,10 @@ def _bayesian_backtest_worker(closes_vals, volumes_vals, cols, sma_np, rsi_np,
     else:
         sharpe = 0
 
-    return {"total_return": total_return, "sharpe": sharpe}
+    result = {"total_return": total_return, "sharpe": sharpe}
+    if return_equity:
+        result["equity_curve"] = values
+    return result
 
 
 class BayesianStrategy:
@@ -158,14 +240,20 @@ class BayesianStrategy:
         "threshold": [0.65, 0.70, 0.75],
         "trend_window": [120, 240],
         "top_n": [1, 2],
+        "take_profit": [0.0, 0.002, 0.004],
+        "stop_loss": [0.0, 0.015],
+        "max_hold": [0, 30, 60],
+        "regime_window": [0, 540],
     }
-    REBALANCE_OPTIONS = [5, 15, 30]
+    REBALANCE_OPTIONS = [15, 30]
 
     def __init__(self, api: tradeapi.REST, symbols: list[str],
                  sma_period: int = 20, rsi_period: int = 14,
                  momentum_weight: float = 1.0, volume_weight: float = 0.5,
                  rsi_weight: float = 0.5, threshold: float = 0.6,
-                 trend_window: int = 120, top_n: int = 2):
+                 trend_window: int = 120, top_n: int = 2,
+                 take_profit: float = 0.0, stop_loss: float = 0.0,
+                 max_hold: int = 0, regime_window: int = 0):
         self.api = api
         self.symbols = symbols
         self.sma_period = sma_period
@@ -176,6 +264,10 @@ class BayesianStrategy:
         self.threshold = threshold
         self.trend_window = trend_window
         self.top_n = top_n
+        self.take_profit = take_profit
+        self.stop_loss = stop_loss
+        self.max_hold = max_hold
+        self.regime_window = regime_window
         self._load_params()
 
     def _load_params(self):
@@ -183,14 +275,12 @@ class BayesianStrategy:
         if os.path.exists(pf):
             with open(pf) as f:
                 p = json.load(f)
-            self.sma_period = p.get("sma_period", self.sma_period)
-            self.rsi_period = p.get("rsi_period", self.rsi_period)
-            self.momentum_weight = p.get("momentum_weight", self.momentum_weight)
-            self.volume_weight = p.get("volume_weight", self.volume_weight)
-            self.rsi_weight = p.get("rsi_weight", self.rsi_weight)
-            self.threshold = p.get("threshold", self.threshold)
-            self.trend_window = p.get("trend_window", self.trend_window)
-            self.top_n = p.get("top_n", self.top_n)
+            for attr in ["sma_period", "rsi_period", "momentum_weight",
+                         "volume_weight", "rsi_weight", "threshold",
+                         "trend_window", "top_n", "take_profit",
+                         "stop_loss", "max_hold", "regime_window"]:
+                if attr in p:
+                    setattr(self, attr, p[attr])
             print(f"Loaded params from {pf}")
 
     def _save_params(self, rebalance_every=5, params_suffix=None):
@@ -207,6 +297,10 @@ class BayesianStrategy:
             "threshold": self.threshold,
             "trend_window": self.trend_window,
             "top_n": self.top_n,
+            "take_profit": self.take_profit,
+            "stop_loss": self.stop_loss,
+            "max_hold": self.max_hold,
+            "regime_window": self.regime_window,
             "rebalance_every": rebalance_every,
             "updated_at": datetime.now().isoformat(),
         }
@@ -260,10 +354,7 @@ class BayesianStrategy:
 
         import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-        from optimize import grid_search, find_best
-
-        keys = list(self.GRID.keys())
-        combos = list(itertools.product(*self.GRID.values()))
+        from optimize import bayesian_search
 
         # Convert caches to numpy for pickling
         closes_vals = closes.values
@@ -273,34 +364,22 @@ class BayesianStrategy:
         vol_avg_np = {k: v.values for k, v in vol_cache.items()}
         trend_np = {k: v.values for k, v in trend_cache.items()}
 
-        jobs = []
-        jobs_meta = []
         rebal_options = [fixed_interval] if fixed_interval else self.REBALANCE_OPTIONS
-        for rebal in rebal_options:
-            for vals in combos:
-                kwargs = dict(zip(keys, vals))
-                jobs.append((closes_vals, volumes_vals, closes.columns.tolist(),
-                             sma_np, rsi_np, vol_avg_np, trend_np, kwargs, rebal))
-                jobs_meta.append((kwargs, rebal))
+        fixed_args = (closes_vals, volumes_vals, closes.columns.tolist(),
+                      sma_np, rsi_np, vol_avg_np, trend_np)
 
-        results = grid_search(_bayesian_backtest_worker, jobs)
-        best_params, best_rebal, best_sharpe, best_return = find_best(jobs_meta, results)
+        best_params, best_rebal, best_sharpe, best_return = bayesian_search(
+            _bayesian_backtest_worker, self.GRID, rebal_options, fixed_args,
+            n_trials=300)
 
         if best_params:
-            self.sma_period = best_params["sma_period"]
-            self.rsi_period = best_params["rsi_period"]
-            self.momentum_weight = best_params["momentum_weight"]
-            self.volume_weight = best_params["volume_weight"]
-            self.rsi_weight = best_params["rsi_weight"]
-            self.threshold = best_params["threshold"]
-            self.trend_window = best_params["trend_window"]
-            self.top_n = best_params["top_n"]
+            for attr in best_params:
+                if hasattr(self, attr):
+                    setattr(self, attr, best_params[attr])
             label = "Optimal" if best_return > 0 else "Best (still negative)"
             print(f"\n{label} params found:")
-            print(f"  sma_period={self.sma_period}, rsi_period={self.rsi_period}")
-            print(f"  momentum_weight={self.momentum_weight}, volume_weight={self.volume_weight}")
-            print(f"  rsi_weight={self.rsi_weight}, threshold={self.threshold}")
-            print(f"  trend_window={self.trend_window}, top_n={self.top_n}")
+            for k, v in best_params.items():
+                print(f"  {k}={v}")
             print(f"  rebalance_every={best_rebal}min")
             print(f"  Backtest return: {best_return:.2%} | Sharpe: {best_sharpe:.2f}")
             self._save_params(best_rebal, params_suffix=params_suffix)
