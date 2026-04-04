@@ -167,6 +167,13 @@ def get_api() -> tradeapi.REST:
     )
 
 
+# Strategies excluded from refresh (consistently negative OOS returns)
+REFRESH_EXCLUDE = {
+    "crypto": {"beta_reversion", "dual_velocity_mr", "monte_carlo", "momentum", "rsi_mean_revert", "bandit", "fracdiff_mr"},
+    "stock": {"momentum", "ema_crossover", "breakout"},
+}
+
+
 def get_strategies(market):
     return CRYPTO_STRATEGIES if market == "crypto" else STOCK_STRATEGIES
 
@@ -345,7 +352,13 @@ def cmd_optimize(api, market, strategy_name, days=7, interval=None):
     strategies = get_strategies(market)
     symbols = get_symbols(market)
 
-    names = [strategy_name] if strategy_name else list(strategies.keys())
+    if strategy_name:
+        names = [strategy_name]
+    else:
+        excluded = REFRESH_EXCLUDE.get(market, set())
+        names = [n for n in strategies if n not in excluded]
+        if excluded:
+            print(f"Skipping {len(excluded)} excluded strategies: {', '.join(sorted(excluded))}\n")
     for name in names:
         if name not in strategies:
             print(f"Unknown strategy '{name}'. Available: {', '.join(strategies.keys())}")
@@ -401,7 +414,13 @@ def cmd_backtest(api, market, strategy_name=None, days=7, interval=None, end_day
     import time as _time
     strategies = get_strategies(market)
     symbols = get_symbols(market)
-    names = [strategy_name] if strategy_name else list(strategies.keys())
+    if strategy_name:
+        names = [strategy_name]
+    else:
+        excluded = REFRESH_EXCLUDE.get(market, set())
+        names = [n for n in strategies if n not in excluded]
+        if excluded:
+            print(f"Skipping {len(excluded)} excluded strategies: {', '.join(sorted(excluded))}\n")
 
     if interval:
         print(f"Forcing rebalance interval: {interval} min for all strategies\n")
