@@ -1,13 +1,17 @@
 {
-  "updated_at": "2026-04-03T07:56:13.842052",
+  "updated_at": "2026-04-03T23:44:54.828414",
   "optimize_days": 60,
   "backtest_days": 365,
   "crypto": {
-    "strategy": "bayesian",
-    "backtest_return": 0.9186570515210807
+    "strategy": "velocity_mr",
+    "backtest_return": 0.2988869844386005,
+    "sharpe": 3.8688303440426437,
+    "max_dd": -0.03525674495784278
   },
   "stock": {
     "strategy": "mean_reversion",
-    "backtest_return": 658.362769792855
+    "backtest_return": 658.362769792855,
+    "sharpe": 7.639447006708991,
+    "max_dd": -0.15637632451793834
   }
 }
